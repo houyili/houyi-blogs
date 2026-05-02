@@ -123,30 +123,6 @@ a {
   line-height: 1.55;
 }
 
-.hero-badges {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.hero-badge {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-  color: var(--muted);
-  min-height: 28px;
-  padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 660;
-}
-
-.hero-badge.primary {
-  border-color: #89eadf;
-  background: var(--accent-soft);
-  color: var(--ink);
-}
-
 .flow-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 310px;
@@ -386,10 +362,6 @@ a {
   .hero p,
   .post-card p {
     font-size: 16px;
-  }
-
-  .hero-badges {
-    justify-content: flex-start;
   }
 
   .flow-layout {

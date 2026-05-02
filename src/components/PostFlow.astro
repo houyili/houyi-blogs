@@ -11,16 +11,15 @@ const base = import.meta.env.BASE_URL.endsWith("/")
 
 const copy = {
   en: {
-    heading: "AI systems notes, paper explainers, and project launches.",
-    subheading: "A content-first technical blog: latest posts flow downward, while pinned essays, topics, and search keep the archive easy to navigate.",
+    heading: "AGI research notes, paper explainers, and open-source launches.",
+    subheading: "A mission-driven research flow for understanding AGI: my papers, my projects, and technical readings that sharpen the path.",
     search: "Search",
     searchPlaceholder: "Search MoE, Step Law, 20%, data reuse...",
     pinned: "Pinned",
     topics: "Auto Topics",
     pipeline: "Publishing Pipeline",
     allResearch: "All Research",
-    badges: ["AstroPaper-inspired", "Pagefind", "Giscus"],
-    loadMore: "Load more essays and notes",
+    loadMore: "Load more research notes",
     pipelineItems: ["project/blog.md", "-> reviewed MDX", "-> en/zh routes", "-> X + Reddit cards"],
     pinnedItems: [
       ["MoE vs Dense under equal resources", "Paper explainer · ICLR 2026"],
@@ -29,16 +28,15 @@ const copy = {
     ]
   },
   zh: {
-    heading: "AI 系统笔记、论文解读与项目发布。",
-    subheading: "以内容流为主体：最新文章向下滚动，置顶文章、主题索引和搜索负责长期导航。",
+    heading: "AGI 研究笔记、论文解读与开源项目发布。",
+    subheading: "由对 AGI 的好奇心和使命感驱动：解释自己的论文与项目，也拆解值得认真理解的外部论文和技术。",
     search: "搜索",
     searchPlaceholder: "搜索 MoE、Step Law、20%、数据复用...",
     pinned: "置顶",
     topics: "自动主题",
     pipeline: "发布流程",
     allResearch: "全部研究",
-    badges: ["AstroPaper-inspired", "Pagefind", "Giscus"],
-    loadMore: "加载更多文章与笔记",
+    loadMore: "加载更多研究笔记",
     pipelineItems: ["project/blog.md", "-> reviewed MDX", "-> en/zh routes", "-> X + Reddit cards"],
     pinnedItems: [
       ["等资源下的 MoE vs Dense", "论文解读 · ICLR 2026"],
@@ -53,11 +51,6 @@ const copy = {
   <div>
     <h1 id="site-title">{copy.heading}</h1>
     <p>{copy.subheading}</p>
-  </div>
-  <div class="hero-badges" aria-label="Stack">
-    {copy.badges.map((badge, index) => (
-      <span class:list={["hero-badge", index === 0 && "primary"]}>{badge}</span>
-    ))}
   </div>
 </section>
 
