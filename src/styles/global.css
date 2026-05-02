@@ -10,7 +10,7 @@
   --accent: #2f7f78;
   --accent-strong: #1f6c66;
   --accent-soft: #d8fbf2;
-  --max: 1970px;
+  --max: none;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -45,7 +45,7 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  margin-bottom: 40px;
+  margin-bottom: 28px;
   padding: 21px 28px;
   background: rgba(255, 255, 255, 0.82);
   border: 1px solid var(--line);
@@ -100,7 +100,7 @@ a {
   gap: 30px;
   align-items: end;
   border-bottom: 1px solid var(--line);
-  padding: 38px 0 34px;
+  padding: 21px 0 22px;
   margin-bottom: 34px;
 }
 
