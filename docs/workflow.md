@@ -41,7 +41,7 @@ description: "A research explanation of data, routing, and scaling tradeoffs."
 published: 2026-05-02
 updated: 2026-05-02
 lang: en
-slug: moe-surpass-dense
+post_slug: moe-surpass-dense
 translation: zh/moe-surpass-dense
 tags:
   - MoE
@@ -64,4 +64,3 @@ Comments will use Giscus. Giscus embeds GitHub Discussions on each post page, so
 ## Search
 
 Search will use Pagefind. Pagefind builds a static search index from the generated site, so the published site can search posts without a server.
-

@@ -8,7 +8,7 @@ const post = defineCollection({
     published: z.coerce.date(),
     updated: z.coerce.date().optional(),
     lang: z.enum(["en", "zh"]),
-    slug: z.string(),
+    post_slug: z.string(),
     translation: z.string().optional(),
     tags: z.array(z.string()).default([]),
     pinned: z.boolean().default(false),
@@ -21,4 +21,3 @@ const post = defineCollection({
 });
 
 export const collections = { post };
-
