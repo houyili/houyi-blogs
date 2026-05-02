@@ -183,8 +183,8 @@ a {
 .post-card h2 {
   max-width: 770px;
   margin: 10px 0 0;
-  font-size: clamp(26px, 3vw, 38px);
-  line-height: 1.13;
+  font-size: clamp(24px, 2.35vw, 32px);
+  line-height: 1.18;
   letter-spacing: 0;
 }
 
