@@ -17,8 +17,11 @@ const copy = {
     searchPlaceholder: "Search MoE, Step Law, 20%, data reuse...",
     pinned: "Pinned",
     topics: "Auto Topics",
+    pipeline: "Publishing Pipeline",
     allResearch: "All Research",
-    badges: ["Pinned Essays", "Topic Index", "Comments"],
+    badges: ["AstroPaper-inspired", "Pagefind", "Giscus"],
+    loadMore: "Load more essays and notes",
+    pipelineItems: ["project/blog.md", "-> reviewed MDX", "-> en/zh routes", "-> X + Reddit cards"],
     pinnedItems: [
       ["MoE vs Dense under equal resources", "Paper explainer · ICLR 2026"],
       ["Step3 is large yet affordable", "Model-system co-design"],
@@ -32,8 +35,11 @@ const copy = {
     searchPlaceholder: "搜索 MoE、Step Law、20%、数据复用...",
     pinned: "置顶",
     topics: "自动主题",
+    pipeline: "发布流程",
     allResearch: "全部研究",
-    badges: ["置顶文章", "主题索引", "评论"],
+    badges: ["AstroPaper-inspired", "Pagefind", "Giscus"],
+    loadMore: "加载更多文章与笔记",
+    pipelineItems: ["project/blog.md", "-> reviewed MDX", "-> en/zh routes", "-> X + Reddit cards"],
     pinnedItems: [
       ["等资源下的 MoE vs Dense", "论文解读 · ICLR 2026"],
       ["Step3 很大，但并不昂贵", "模型与系统协同设计"],
@@ -48,7 +54,7 @@ const copy = {
     <h1 id="site-title">{copy.heading}</h1>
     <p>{copy.subheading}</p>
   </div>
-  <div class="hero-badges" aria-label="Site features">
+  <div class="hero-badges" aria-label="Stack">
     {copy.badges.map((badge, index) => (
       <span class:list={["hero-badge", index === 0 && "primary"]}>{badge}</span>
     ))}
@@ -79,6 +85,7 @@ const copy = {
           )}
         </article>
       ))}
+      <div class="load">{copy.loadMore}</div>
     </div>
   </section>
 
@@ -106,6 +113,13 @@ const copy = {
         <li><strong>{copy.allResearch}</strong><span>42</span></li>
         {topics.map((topic, index) => <li><span>{topic}</span><span>{index + 7}</span></li>)}
       </ul>
+    </section>
+
+    <section class="rail-section">
+      <h2>{copy.pipeline}</h2>
+      <div class="workflow">
+        {copy.pipelineItems.map((item) => <span>{item}</span>)}
+      </div>
     </section>
   </aside>
 </main>

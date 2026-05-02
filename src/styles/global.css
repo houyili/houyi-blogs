@@ -10,7 +10,7 @@
   --accent: #2f7f78;
   --accent-strong: #1f6c66;
   --accent-soft: #d8fbf2;
-  --max: none;
+  --max: 1320px;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -20,11 +20,14 @@
 
 body {
   margin: 0;
+  min-height: 100vh;
   background:
-    linear-gradient(rgba(210, 228, 236, 0.58) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(210, 228, 236, 0.58) 1px, transparent 1px),
-    linear-gradient(120deg, #eaf6fb 0%, var(--bg-warm) 72%);
-  background-size: 46px 46px, 46px 46px, auto;
+    linear-gradient(90deg, rgba(17, 24, 39, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(17, 24, 39, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at 12% 8%, rgba(103, 232, 249, 0.12), transparent 28%),
+    radial-gradient(circle at 86% 22%, rgba(167, 243, 107, 0.10), transparent 26%),
+    #eef3f7;
+  background-size: 42px 42px, 42px 42px, auto, auto, auto;
   color: var(--ink);
 }
 
@@ -36,32 +39,32 @@ a {
 .site-shell {
   max-width: var(--max);
   margin: 0 auto;
-  padding: 28px 40px 72px;
+  padding: 18px 18px 28px;
 }
 
 .topbar {
-  min-height: 96px;
+  min-height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  margin-bottom: 28px;
-  padding: 21px 28px;
-  background: rgba(255, 255, 255, 0.82);
-  border: 1px solid var(--line);
-  box-shadow: 0 18px 48px rgba(69, 91, 112, 0.08);
+  margin-bottom: 0;
+  padding: 12px 0;
+  background: rgba(246, 247, 251, 0.86);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(16px);
 }
 
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 14px;
+  gap: 11px;
   min-width: 0;
 }
 
 .brand-mark {
-  width: 52px;
-  height: 52px;
+  width: 34px;
+  height: 34px;
   display: inline-grid;
   place-items: center;
   flex: 0 0 auto;
@@ -70,11 +73,11 @@ a {
   background: #d9fbf3;
   color: var(--accent-strong);
   font-weight: 800;
-  font-size: 16px;
+  font-size: 12px;
 }
 
 .brand strong {
-  font-size: 24px;
+  font-size: 16px;
   letter-spacing: 0;
 }
 
@@ -82,9 +85,9 @@ a {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 30px;
+  gap: 18px;
   color: var(--muted);
-  font-size: 21px;
+  font-size: 14px;
   font-weight: 520;
   white-space: nowrap;
 }
@@ -97,27 +100,27 @@ a {
 .hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 30px;
+  gap: 18px;
   align-items: end;
   border-bottom: 1px solid var(--line);
-  padding: 21px 0 22px;
-  margin-bottom: 34px;
+  padding: 26px 0 18px;
+  margin-bottom: 0;
 }
 
 .hero h1 {
-  max-width: 1180px;
+  max-width: 760px;
   margin: 0;
-  font-size: 34px;
-  line-height: 1.15;
+  font-size: 28px;
+  line-height: 1.18;
   letter-spacing: 0;
 }
 
 .hero p {
-  max-width: 980px;
-  margin: 14px 0 0;
+  max-width: 780px;
+  margin: 8px 0 0;
   color: var(--muted);
-  font-size: 20px;
-  line-height: 1.45;
+  font-size: 15px;
+  line-height: 1.55;
 }
 
 .hero-badges {
@@ -132,8 +135,9 @@ a {
   border-radius: 10px;
   background: var(--surface);
   color: var(--muted);
-  padding: 9px 14px;
-  font-size: 16px;
+  min-height: 28px;
+  padding: 5px 10px;
+  font-size: 12px;
   font-weight: 660;
 }
 
@@ -145,9 +149,10 @@ a {
 
 .flow-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 475px;
-  gap: 44px;
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: 28px;
   align-items: start;
+  padding-top: 22px;
 }
 
 .post-stream {
@@ -164,11 +169,11 @@ a {
 
 .post-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 350px;
-  gap: 46px;
+  grid-template-columns: minmax(0, 1fr) 230px;
+  gap: 20px;
   align-items: center;
   background: var(--surface-soft);
-  padding: 38px 38px 36px;
+  padding: 24px;
 }
 
 .post-card + .post-card {
@@ -176,39 +181,39 @@ a {
 }
 
 .post-card h2 {
-  max-width: 980px;
-  margin: 18px 0 16px;
-  font-size: 46px;
-  line-height: 1.08;
+  max-width: 770px;
+  margin: 10px 0 0;
+  font-size: clamp(26px, 3vw, 38px);
+  line-height: 1.13;
   letter-spacing: 0;
 }
 
 .post-card p {
-  max-width: 1040px;
-  margin: 0;
+  max-width: 760px;
+  margin: 10px 0 0;
   color: var(--muted);
-  font-size: 20px;
-  line-height: 1.55;
+  font-size: 15px;
+  line-height: 1.62;
 }
 
 .meta,
 .tag-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 9px;
+  gap: 7px;
 }
 
 .pill,
 .tag {
-  min-height: 36px;
+  min-height: 28px;
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 9px;
   background: rgba(255, 255, 255, 0.78);
   color: var(--muted);
-  padding: 7px 13px;
-  font-size: 16px;
+  padding: 5px 10px;
+  font-size: 12px;
   font-weight: 680;
 }
 
@@ -219,12 +224,12 @@ a {
 }
 
 .tag-row {
-  margin-top: 20px;
+  margin-top: 14px;
 }
 
 .post-figure {
   margin: 0;
-  padding: 16px;
+  padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.78);
@@ -248,7 +253,7 @@ a {
 }
 
 .rail-section {
-  padding: 28px 24px;
+  padding: 16px;
 }
 
 .rail-section + .rail-section {
@@ -256,8 +261,8 @@ a {
 }
 
 .rail-section h2 {
-  margin: 0 0 18px;
-  font-size: 18px;
+  margin: 0 0 10px;
+  font-size: 12px;
   line-height: 1.2;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -265,12 +270,12 @@ a {
 
 .search-box {
   width: 100%;
-  min-height: 64px;
+  min-height: 44px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 13px 18px;
+  padding: 10px 12px;
   font: inherit;
-  font-size: 20px;
+  font-size: 13px;
   color: var(--ink);
   background: rgba(255, 255, 255, 0.72);
 }
@@ -287,7 +292,7 @@ a {
 .pinned-list li {
   display: grid;
   gap: 3px;
-  padding: 11px 0;
+  padding: 10px 0;
   border-bottom: 1px solid var(--line);
 }
 
@@ -297,26 +302,43 @@ a {
 }
 
 .pinned-list strong {
-  font-size: 20px;
+  font-size: 13px;
   line-height: 1.25;
 }
 
 .pinned-list span,
 .topic-list span {
   color: var(--muted);
-  font-size: 19px;
+  font-size: 12px;
 }
 
 .topic-list li {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 0;
+  padding: 9px 0;
   border-bottom: 1px solid var(--line);
 }
 
 .topic-list strong {
   color: var(--accent-strong);
+}
+
+.workflow {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.load {
+  display: grid;
+  place-items: center;
+  min-height: 82px;
+  border: 1px dashed var(--line);
+  color: #7a8797;
+  background: rgba(255, 255, 255, 0.46);
+  font-size: 13px;
 }
 
 @media (max-width: 1100px) {
