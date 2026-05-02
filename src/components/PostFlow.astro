@@ -19,6 +19,11 @@ const copy = {
     topics: "Topics",
     allResearch: "All Research",
     loadMore: "Load more research notes",
+    aboutTitle: "About",
+    aboutLead: "I am Houyi Li, a researcher and builder focused on AGI systems, scaling behavior, efficient model training, and open-source AI infrastructure.",
+    aboutBody: "This site is driven by curiosity and a sense of mission around AGI. I use it to explain my papers, release open-source projects, and write technical readings of papers, systems, and ideas that I think matter.",
+    aboutNote: "The goal is not to post frequent opinions, but to make solid research and engineering ideas easier to understand, verify, reuse, and discuss.",
+    aboutLink: "Personal homepage",
     pinnedItems: [
       ["MoE vs Dense under equal resources", "Paper explainer · ICLR 2026"],
       ["Step3 is large yet affordable", "Model-system co-design"],
@@ -34,6 +39,11 @@ const copy = {
     topics: "主题索引",
     allResearch: "全部研究",
     loadMore: "加载更多研究笔记",
+    aboutTitle: "关于",
+    aboutLead: "我是 Houyi Li，关注 AGI 系统、Scaling behavior、高效模型训练和开源 AI 基础设施的研究者与构建者。",
+    aboutBody: "这个网站由我对 AGI 的好奇心和使命感驱动。我会在这里解释自己的论文，发布自己的开源项目，也会拆解我认为值得认真理解的论文、系统和技术观点。",
+    aboutNote: "它不是一个随笔博客，而是一个长期的研究流：让扎实的研究和工程想法更容易被理解、验证、复用和讨论。",
+    aboutLink: "个人主页",
     pinnedItems: [
       ["等资源下的 MoE vs Dense", "论文解读 · ICLR 2026"],
       ["Step3 很大，但并不昂贵", "模型与系统协同设计"],
@@ -105,3 +115,13 @@ const copy = {
     </section>
   </aside>
 </main>
+
+<section id="about" class="about-section" aria-labelledby="about-title">
+  <div>
+    <h2 id="about-title">{copy.aboutTitle}</h2>
+    <p>{copy.aboutLead}</p>
+    <p>{copy.aboutBody}</p>
+    <p>{copy.aboutNote}</p>
+  </div>
+  <a class="about-link" href="https://houyili.github.io/">{copy.aboutLink}</a>
+</section>

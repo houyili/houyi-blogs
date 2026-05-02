@@ -319,6 +319,46 @@ a {
   font-size: 13px;
 }
 
+.about-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: end;
+  margin-top: 28px;
+  padding: 22px 0 8px;
+  border-top: 1px solid var(--line);
+}
+
+.about-section h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.about-section p {
+  max-width: 900px;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.62;
+}
+
+.about-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  border: 1px solid #9ceadf;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
 @media (max-width: 1100px) {
   .post-card {
     grid-template-columns: 1fr;
@@ -373,6 +413,11 @@ a {
 
   .flow-layout {
     gap: 20px;
+  }
+
+  .about-section {
+    grid-template-columns: 1fr;
+    align-items: start;
   }
 
   .rail {
