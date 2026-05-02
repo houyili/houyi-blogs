@@ -10,7 +10,7 @@
   --accent: #2f7f78;
   --accent-strong: #1f6c66;
   --accent-soft: #d8fbf2;
-  --max: 1440px;
+  --max: 1970px;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -36,17 +36,17 @@ a {
 .site-shell {
   max-width: var(--max);
   margin: 0 auto;
-  padding: 20px 28px 72px;
+  padding: 28px 40px 72px;
 }
 
 .topbar {
-  min-height: 70px;
+  min-height: 96px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  margin-bottom: 34px;
-  padding: 16px 22px;
+  margin-bottom: 40px;
+  padding: 21px 28px;
   background: rgba(255, 255, 255, 0.82);
   border: 1px solid var(--line);
   box-shadow: 0 18px 48px rgba(69, 91, 112, 0.08);
@@ -60,8 +60,8 @@ a {
 }
 
 .brand-mark {
-  width: 36px;
-  height: 36px;
+  width: 52px;
+  height: 52px;
   display: inline-grid;
   place-items: center;
   flex: 0 0 auto;
@@ -70,11 +70,11 @@ a {
   background: #d9fbf3;
   color: var(--accent-strong);
   font-weight: 800;
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .brand strong {
-  font-size: 19px;
+  font-size: 24px;
   letter-spacing: 0;
 }
 
@@ -82,9 +82,9 @@ a {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 22px;
+  gap: 30px;
   color: var(--muted);
-  font-size: 16px;
+  font-size: 21px;
   font-weight: 520;
   white-space: nowrap;
 }
@@ -100,23 +100,23 @@ a {
   gap: 30px;
   align-items: end;
   border-bottom: 1px solid var(--line);
-  padding: 22px 0 26px;
-  margin-bottom: 26px;
+  padding: 38px 0 34px;
+  margin-bottom: 34px;
 }
 
 .hero h1 {
-  max-width: 980px;
+  max-width: 1180px;
   margin: 0;
-  font-size: 34px;
+  font-size: 42px;
   line-height: 1.15;
   letter-spacing: 0;
 }
 
 .hero p {
-  max-width: 860px;
+  max-width: 980px;
   margin: 14px 0 0;
   color: var(--muted);
-  font-size: 18px;
+  font-size: 24px;
   line-height: 1.45;
 }
 
@@ -132,8 +132,8 @@ a {
   border-radius: 10px;
   background: var(--surface);
   color: var(--muted);
-  padding: 9px 14px;
-  font-size: 14px;
+  padding: 11px 16px;
+  font-size: 18px;
   font-weight: 660;
 }
 
@@ -145,8 +145,8 @@ a {
 
 .flow-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 32px;
+  grid-template-columns: minmax(0, 1fr) 475px;
+  gap: 44px;
   align-items: start;
 }
 
@@ -164,11 +164,11 @@ a {
 
 .post-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
-  gap: 28px;
+  grid-template-columns: minmax(0, 1fr) 350px;
+  gap: 46px;
   align-items: center;
   background: var(--surface-soft);
-  padding: 30px 28px 26px;
+  padding: 38px 38px 36px;
 }
 
 .post-card + .post-card {
@@ -176,18 +176,18 @@ a {
 }
 
 .post-card h2 {
-  max-width: 780px;
+  max-width: 980px;
   margin: 18px 0 16px;
-  font-size: 42px;
+  font-size: 58px;
   line-height: 1.08;
   letter-spacing: 0;
 }
 
 .post-card p {
-  max-width: 760px;
+  max-width: 1040px;
   margin: 0;
   color: var(--muted);
-  font-size: 18px;
+  font-size: 24px;
   line-height: 1.55;
 }
 
@@ -200,15 +200,15 @@ a {
 
 .pill,
 .tag {
-  min-height: 31px;
+  min-height: 43px;
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 9px;
   background: rgba(255, 255, 255, 0.78);
   color: var(--muted);
-  padding: 6px 12px;
-  font-size: 14px;
+  padding: 9px 16px;
+  font-size: 18px;
   font-weight: 680;
 }
 
@@ -224,7 +224,7 @@ a {
 
 .post-figure {
   margin: 0;
-  padding: 12px;
+  padding: 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.78);
@@ -248,7 +248,7 @@ a {
 }
 
 .rail-section {
-  padding: 21px 18px;
+  padding: 28px 24px;
 }
 
 .rail-section + .rail-section {
@@ -256,8 +256,8 @@ a {
 }
 
 .rail-section h2 {
-  margin: 0 0 14px;
-  font-size: 14px;
+  margin: 0 0 18px;
+  font-size: 18px;
   line-height: 1.2;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -265,12 +265,12 @@ a {
 
 .search-box {
   width: 100%;
-  min-height: 47px;
+  min-height: 64px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 13px 18px;
   font: inherit;
-  font-size: 15px;
+  font-size: 20px;
   color: var(--ink);
   background: rgba(255, 255, 255, 0.72);
 }
@@ -297,14 +297,14 @@ a {
 }
 
 .pinned-list strong {
-  font-size: 15px;
+  font-size: 20px;
   line-height: 1.25;
 }
 
 .pinned-list span,
 .topic-list span {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 19px;
 }
 
 .topic-list li {
