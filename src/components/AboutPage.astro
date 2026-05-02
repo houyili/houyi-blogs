@@ -1,0 +1,42 @@
+---
+const { lang = "en" } = Astro.props;
+
+const copy = {
+  en: {
+    eyebrow: "About",
+    title: "A mission-driven AGI research flow.",
+    lead: "I am Houyi Li, a researcher and builder focused on AGI systems, scaling behavior, efficient model training, and open-source AI infrastructure.",
+    body: "This site is driven by curiosity and a sense of mission around AGI. I use it to explain my papers, release open-source projects, and write technical readings of papers, systems, and ideas that I think matter.",
+    note: "The goal is not to post frequent opinions, but to make solid research and engineering ideas easier to understand, verify, reuse, and discuss.",
+    homepage: "Personal homepage",
+    back: "Back to AGI Flow"
+  },
+  zh: {
+    eyebrow: "关于",
+    title: "一个由使命感驱动的 AGI 研究流。",
+    lead: "我是 Houyi Li，关注 AGI 系统、Scaling behavior、高效模型训练和开源 AI 基础设施的研究者与构建者。",
+    body: "这个网站由我对 AGI 的好奇心和使命感驱动。我会在这里解释自己的论文，发布自己的开源项目，也会拆解我认为值得认真理解的论文、系统和技术观点。",
+    note: "它不是一个随笔博客，而是一个长期的研究流：让扎实的研究和工程想法更容易被理解、验证、复用和讨论。",
+    homepage: "个人主页",
+    back: "返回 AGI Flow"
+  }
+}[lang];
+
+const base = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+---
+
+<main class="about-page" aria-labelledby="about-title">
+  <p class="eyebrow">{copy.eyebrow}</p>
+  <h1 id="about-title">{copy.title}</h1>
+  <div class="about-copy">
+    <p>{copy.lead}</p>
+    <p>{copy.body}</p>
+    <p>{copy.note}</p>
+  </div>
+  <div class="about-actions">
+    <a class="about-link" href="https://houyili.github.io/">{copy.homepage}</a>
+    <a class="about-link secondary" href={`${base}${lang}/`}>{copy.back}</a>
+  </div>
+</main>

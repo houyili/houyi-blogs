@@ -4,7 +4,8 @@ import "../styles/global.css";
 const {
   title = "Houyi AI Research Flow",
   description = "Mission-driven AGI research notes, paper explainers, and open-source project launches.",
-  lang = "en"
+  lang = "en",
+  current = "flow"
 } = Astro.props;
 
 const base = import.meta.env.BASE_URL.endsWith("/")
@@ -51,11 +52,11 @@ const currentBase = `${base}${lang}/`;
           <strong>Houyi Li</strong>
         </a>
         <nav class="nav" aria-label="Primary navigation">
-          <a href={currentBase} aria-current="page">{nav.flow}</a>
+          <a href={currentBase} aria-current={current === "flow" ? "page" : undefined}>{nav.flow}</a>
           <a href={`${currentBase}#papers`}>{nav.papers}</a>
           <a href={`${currentBase}#open-source`}>{nav.projects}</a>
           <a href={`${currentBase}#reading-notes`}>{nav.notes}</a>
-          <a href={`${currentBase}#about`}>{nav.about}</a>
+          <a href={`${currentBase}about/`} aria-current={current === "about" ? "page" : undefined}>{nav.about}</a>
           <a href={nav.switchHref}>{nav.switchLabel}</a>
         </nav>
       </header>
