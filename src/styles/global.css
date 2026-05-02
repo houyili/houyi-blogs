@@ -108,11 +108,12 @@ a {
 }
 
 .hero h1 {
-  max-width: 760px;
+  max-width: none;
   margin: 0;
   font-size: 28px;
   line-height: 1.18;
   letter-spacing: 0;
+  white-space: nowrap;
 }
 
 .hero p {
@@ -356,7 +357,8 @@ a {
   }
 
   .hero h1 {
-    font-size: 30px;
+    font-size: 26px;
+    white-space: normal;
   }
 
   .hero p,
