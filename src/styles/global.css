@@ -117,11 +117,12 @@ a {
 }
 
 .hero p {
-  max-width: 780px;
+  max-width: none;
   margin: 8px 0 0;
   color: var(--muted);
   font-size: 15px;
   line-height: 1.55;
+  white-space: nowrap;
 }
 
 .flow-layout {
@@ -364,6 +365,10 @@ a {
   .hero p,
   .post-card p {
     font-size: 16px;
+  }
+
+  .hero p {
+    white-space: normal;
   }
 
   .flow-layout {
