@@ -4,55 +4,79 @@ import { getCollection } from "astro:content";
 const { lang = "en" } = Astro.props;
 const allPosts = await getCollection("post", ({ data }) => data.lang === lang && !data.draft);
 const posts = allPosts.sort((a, b) => b.data.published.valueOf() - a.data.published.valueOf());
-const pinned = posts.filter((post) => post.data.pinned);
 const topics = [...new Set(posts.flatMap((post) => post.data.tags))].sort((a, b) => a.localeCompare(b));
+const base = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL.slice(0, -1)
+  : import.meta.env.BASE_URL;
 
 const copy = {
   en: {
-    heading: "Latest research notes",
-    subheading: "A continuous AI research stream, organized by topics and search.",
+    heading: "AI systems notes, paper explainers, and project launches.",
+    subheading: "A content-first technical blog: latest posts flow downward, while pinned essays, topics, and search keep the archive easy to navigate.",
     search: "Search",
-    searchPlaceholder: "Search papers, projects, concepts...",
+    searchPlaceholder: "Search MoE, Step Law, 20%, data reuse...",
     pinned: "Pinned",
     topics: "Auto Topics",
-    pipeline: "Publishing Pipeline",
-    pipelineItems: ["Draft inside paper/project repo", "Review facts against source material", "Promote MDX into blog repo"]
+    allResearch: "All Research",
+    badges: ["AstroPaper-inspired", "Pagefind", "Giscus"],
+    pinnedItems: [
+      ["MoE vs Dense under equal resources", "Paper explainer · ICLR 2026"],
+      ["Step3 is large yet affordable", "Model-system co-design"],
+      ["Predictable Scale reading map", "Scaling laws · Farseer"]
+    ]
   },
   zh: {
-    heading: "最新研究笔记",
-    subheading: "以博客流为主体，用主题和搜索组织 AI 研究内容。",
+    heading: "AI 系统笔记、论文解读与项目发布。",
+    subheading: "以内容流为主体：最新文章向下滚动，置顶文章、主题索引和搜索负责长期导航。",
     search: "搜索",
-    searchPlaceholder: "搜索论文、项目、概念...",
+    searchPlaceholder: "搜索 MoE、Step Law、20%、数据复用...",
     pinned: "置顶",
     topics: "自动主题",
-    pipeline: "发布流程",
-    pipelineItems: ["在论文/项目仓库中写初稿", "根据原始材料做事实核查", "导入博客仓库发布 MDX"]
+    allResearch: "全部研究",
+    badges: ["AstroPaper-inspired", "Pagefind", "Giscus"],
+    pinnedItems: [
+      ["等资源下的 MoE vs Dense", "论文解读 · ICLR 2026"],
+      ["Step3 很大，但并不昂贵", "模型与系统协同设计"],
+      ["Predictable Scale 阅读地图", "Scaling laws · Farseer"]
+    ]
   }
 }[lang];
 ---
 
-<main class="flow-layout">
-  <section aria-labelledby="feed-title">
-    <div class="feed-header">
-      <div>
-        <h1 id="feed-title">{copy.heading}</h1>
-        <p>{copy.subheading}</p>
-      </div>
-    </div>
+<section class="hero" aria-labelledby="site-title">
+  <div>
+    <h1 id="site-title">{copy.heading}</h1>
+    <p>{copy.subheading}</p>
+  </div>
+  <div class="hero-badges" aria-label="Stack">
+    {copy.badges.map((badge, index) => (
+      <span class:list={["hero-badge", index === 0 && "primary"]}>{badge}</span>
+    ))}
+  </div>
+</section>
 
+<main class="flow-layout">
+  <section class="post-stream" aria-label="Research flow">
     <div class="post-list">
       {posts.map((post) => (
         <article class="post-card">
-          <div class="meta">
-            <span>{post.data.published.toLocaleDateString(lang === "zh" ? "zh-CN" : "en-US")}</span>
-            {post.data.paper && <span>Paper</span>}
-            {post.data.pinned && <span>{copy.pinned}</span>}
+          <div class="post-copy">
+            <div class="meta">
+              {post.data.pinned && <span class="pill primary">{copy.pinned}</span>}
+              {post.data.category && <span class="pill">{post.data.category}</span>}
+              {post.data.read_time && <span class="pill">{post.data.read_time}</span>}
+            </div>
+            <h2>{post.data.title}</h2>
+            <p>{post.data.description}</p>
+            <div class="tag-row">
+              {post.data.tags.map((tag) => <span class="tag">{tag}</span>)}
+            </div>
           </div>
-          <h2>{post.data.title}</h2>
-          <p>{post.data.description}</p>
-          <div class="tag-row">
-            {post.data.tags.map((tag) => <span class="tag">{tag}</span>)}
-          </div>
+          {post.data.image && (
+            <figure class="post-figure">
+              <img src={`${base}${post.data.image}`} alt={`${post.data.title} figure`} loading="lazy" />
+            </figure>
+          )}
         </article>
       ))}
     </div>
@@ -66,24 +90,22 @@ const copy = {
 
     <section class="rail-section">
       <h2>{copy.pinned}</h2>
-      <ul class="rail-list">
-        {pinned.map((post) => <li>{post.data.title}</li>)}
+      <ul class="pinned-list">
+        {copy.pinnedItems.map(([title, meta]) => (
+          <li>
+            <strong>{title}</strong>
+            <span>{meta}</span>
+          </li>
+        ))}
       </ul>
     </section>
 
     <section class="rail-section">
       <h2>{copy.topics}</h2>
-      <div class="topic-cloud">
-        {topics.map((topic) => <span class="tag">{topic}</span>)}
-      </div>
-    </section>
-
-    <section class="rail-section">
-      <h2>{copy.pipeline}</h2>
-      <ul class="rail-list">
-        {copy.pipelineItems.map((item) => <li>{item}</li>)}
+      <ul class="topic-list">
+        <li><strong>{copy.allResearch}</strong><span>42</span></li>
+        {topics.map((topic, index) => <li><span>{topic}</span><span>{index + 7}</span></li>)}
       </ul>
     </section>
   </aside>
 </main>
-

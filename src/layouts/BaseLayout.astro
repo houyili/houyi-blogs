@@ -23,13 +23,16 @@ const base = import.meta.env.BASE_URL.endsWith("/")
     <div class="site-shell">
       <header class="topbar">
         <a class="brand" href={base}>
-          <strong>Houyi AI Research Flow</strong>
-          <span>AI/AGI papers, projects, and technical notes</span>
+          <span class="brand-mark" aria-hidden="true">HL</span>
+          <strong>Houyi Li</strong>
         </a>
         <nav class="nav" aria-label="Primary navigation">
-          <a href={`${base}en/`}>English</a>
-          <a href={`${base}zh/`}>中文</a>
-          <a href="https://github.com/houyili">GitHub</a>
+          <a href={`${base}en/`} aria-current="page">Research Flow</a>
+          <a href={`${base}en/`}>Papers</a>
+          <a href={`${base}en/`}>Projects</a>
+          <a href={`${base}en/`}>Talks</a>
+          <a href={`${base}en/`}>About</a>
+          <a href={`${base}zh/`}>EN / 中文</a>
         </nav>
       </header>
       <slot />
