@@ -18,7 +18,7 @@ const copy = {
     pinned: "Pinned",
     topics: "Auto Topics",
     allResearch: "All Research",
-    badges: ["AstroPaper-inspired", "Pagefind", "Giscus"],
+    badges: ["Pinned Essays", "Topic Index", "Comments"],
     pinnedItems: [
       ["MoE vs Dense under equal resources", "Paper explainer · ICLR 2026"],
       ["Step3 is large yet affordable", "Model-system co-design"],
@@ -33,7 +33,7 @@ const copy = {
     pinned: "置顶",
     topics: "自动主题",
     allResearch: "全部研究",
-    badges: ["AstroPaper-inspired", "Pagefind", "Giscus"],
+    badges: ["置顶文章", "主题索引", "评论"],
     pinnedItems: [
       ["等资源下的 MoE vs Dense", "论文解读 · ICLR 2026"],
       ["Step3 很大，但并不昂贵", "模型与系统协同设计"],
@@ -48,7 +48,7 @@ const copy = {
     <h1 id="site-title">{copy.heading}</h1>
     <p>{copy.subheading}</p>
   </div>
-  <div class="hero-badges" aria-label="Stack">
+  <div class="hero-badges" aria-label="Site features">
     {copy.badges.map((badge, index) => (
       <span class:list={["hero-badge", index === 0 && "primary"]}>{badge}</span>
     ))}

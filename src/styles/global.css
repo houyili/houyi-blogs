@@ -107,7 +107,7 @@ a {
 .hero h1 {
   max-width: 1180px;
   margin: 0;
-  font-size: 42px;
+  font-size: 34px;
   line-height: 1.15;
   letter-spacing: 0;
 }
@@ -116,7 +116,7 @@ a {
   max-width: 980px;
   margin: 14px 0 0;
   color: var(--muted);
-  font-size: 24px;
+  font-size: 20px;
   line-height: 1.45;
 }
 
@@ -132,8 +132,8 @@ a {
   border-radius: 10px;
   background: var(--surface);
   color: var(--muted);
-  padding: 11px 16px;
-  font-size: 18px;
+  padding: 9px 14px;
+  font-size: 16px;
   font-weight: 660;
 }
 
@@ -178,7 +178,7 @@ a {
 .post-card h2 {
   max-width: 980px;
   margin: 18px 0 16px;
-  font-size: 58px;
+  font-size: 46px;
   line-height: 1.08;
   letter-spacing: 0;
 }
@@ -187,7 +187,7 @@ a {
   max-width: 1040px;
   margin: 0;
   color: var(--muted);
-  font-size: 24px;
+  font-size: 20px;
   line-height: 1.55;
 }
 
@@ -200,15 +200,15 @@ a {
 
 .pill,
 .tag {
-  min-height: 43px;
+  min-height: 36px;
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 9px;
   background: rgba(255, 255, 255, 0.78);
   color: var(--muted);
-  padding: 9px 16px;
-  font-size: 18px;
+  padding: 7px 13px;
+  font-size: 16px;
   font-weight: 680;
 }
 
