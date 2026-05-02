@@ -3,16 +3,40 @@ import "../styles/global.css";
 
 const {
   title = "Houyi AI Research Flow",
-  description = "Mission-driven AGI research notes, paper explainers, and open-source project launches."
+  description = "Mission-driven AGI research notes, paper explainers, and open-source project launches.",
+  lang = "en"
 } = Astro.props;
 
 const base = import.meta.env.BASE_URL.endsWith("/")
   ? import.meta.env.BASE_URL
   : `${import.meta.env.BASE_URL}/`;
+
+const nav = {
+  en: {
+    flow: "AGI Flow",
+    papers: "My Papers",
+    projects: "Open Source",
+    notes: "Reading Notes",
+    about: "About",
+    switchLabel: "中文",
+    switchHref: `${base}zh/`
+  },
+  zh: {
+    flow: "AGI Flow",
+    papers: "我的论文",
+    projects: "开源项目",
+    notes: "阅读笔记",
+    about: "关于",
+    switchLabel: "EN",
+    switchHref: `${base}en/`
+  }
+}[lang];
+
+const currentBase = `${base}${lang}/`;
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang={lang}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -27,12 +51,12 @@ const base = import.meta.env.BASE_URL.endsWith("/")
           <strong>Houyi Li</strong>
         </a>
         <nav class="nav" aria-label="Primary navigation">
-          <a href={`${base}en/`} aria-current="page">Research Flow</a>
-          <a href={`${base}en/`}>Papers</a>
-          <a href={`${base}en/`}>Projects</a>
-          <a href={`${base}en/`}>Talks</a>
-          <a href={`${base}en/`}>About</a>
-          <a href={`${base}zh/`}>EN / 中文</a>
+          <a href={currentBase} aria-current="page">{nav.flow}</a>
+          <a href={`${currentBase}#papers`}>{nav.papers}</a>
+          <a href={`${currentBase}#open-source`}>{nav.projects}</a>
+          <a href={`${currentBase}#reading-notes`}>{nav.notes}</a>
+          <a href={`${currentBase}#about`}>{nav.about}</a>
+          <a href={nav.switchHref}>{nav.switchLabel}</a>
         </nav>
       </header>
       <slot />
