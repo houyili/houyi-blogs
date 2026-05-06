@@ -17,8 +17,13 @@ const post = defineCollection({
     pinned: z.boolean().default(false),
     paper: z.boolean().default(false),
     project: z.string().optional(),
+    venue: z.string().optional(),
+    venue_type: z.string().optional(),
+    paper_url: z.string().optional(),
     source_project: z.string().optional(),
     source_draft: z.string().optional(),
+    source_hash: z.string().optional(),
+    imported_at: z.string().optional(),
     draft: z.boolean().default(false)
   })
 });

@@ -1,0 +1,590 @@
+---
+title: "能否训出和 Dense 总参相同、性能相同的 MoE 模型？"
+description: "一篇 ICLR 2026 Oral 宣传解读：在严格相同总参数、训练计算和数据账下，MoE 能否匹配 Dense LLM。"
+published: "2026-05-02"
+updated: "2026-05-02"
+lang: "zh"
+post_slug: "moe-equal-resources"
+translation: "en/moe-equal-resources"
+category: "论文解读"
+read_time: "45 分钟"
+image: "/assets/papers/moe-equal-resources/reform_datas/figs_empirical/3B_7B_train_token_ratio_combined.png"
+tags:
+  - "MoE"
+  - "激活率"
+  - "数据复用"
+  - "ICLR 2026"
+pinned: true
+paper: true
+project: "moe-equal-resources"
+venue: "ICLR 2026"
+venue_type: "Oral"
+paper_url: ""
+source_project: "/Users/jyxc-dz-0100301/Documents/项目文档/paper/iclr2026"
+source_draft: "blog.md"
+source_hash: "55e7d1469238776134c6a3e645743b35a6b842500473709b4ef15752a1838302"
+imported_at: "2026-05-06T15:13:56.610Z"
+draft: false
+---
+
+## 1. 一句话版本
+
+本文就是为了回答标题里的问题：
+
+> **能否训出一个和Dense LLM总参一样大的而且性能相同的 MoE LLM**
+
+
+回答是：
+
+1. 在 fixed total parameters 和 fixed training compute 下，MoE 要达到同规模 Dense 的效果，核心代价不是参数，而是 tokens：它需要消耗大约 $1/r_a$ 倍的 training tokens。这里 $r_a=N_a/N$ 是 activation rate，也就是 activated parameters 除以 total parameters。作为交换，MoE 把 per-token FLOPs 降到大约 Dense 的 $r_a$ 倍。
+2. 这笔交换只有在合适的 activation-rate region 里才成立。MoE 并不是越稀疏越好；实验反复显示，真正有效的是一个中等稀疏度区间，大致在 10%-30%，其中 20% 附近是最稳定、最清楚的 sweet spot。
+3. 当 unique data 有限时，适度 data reuse 可以补上额外的 token demand，并保留大部分 MoE advantage。
+
+结论很简单，但为了验证它，我们付出了极高的实验成本：
+
+<div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "12px", margin: "14px 0 18px" }}>
+  <div style={{ border: "1px solid #d8e2f0", borderRadius: "8px", padding: "12px 14px", background: "#f8fbff" }}>
+    <div style={{ fontSize: "1.35em", fontWeight: "700" }}>近 200 个</div>
+    <div>从零训练的 2B-scale LLMs</div>
+  </div>
+  <div style={{ border: "1px solid #d8e2f0", borderRadius: "8px", padding: "12px 14px", background: "#f8fbff" }}>
+    <div style={{ fontSize: "1.35em", fontWeight: "700" }}>超过 50 个</div>
+    <div>从零训练的 7B-scale LLMs</div>
+  </div>
+  <div style={{ border: "1px solid #d8e2f0", borderRadius: "8px", padding: "12px 14px", background: "#f8fbff" }}>
+    <div style={{ fontSize: "1.35em", fontWeight: "700" }}>50T</div>
+    <div>训练过程中处理的 tokens</div>
+  </div>
+  <div style={{ border: "1px solid #d8e2f0", borderRadius: "8px", padding: "12px 14px", background: "#f8fbff" }}>
+    <div style={{ fontSize: "1.35em", fontWeight: "700" }}>Open-sourced</div>
+    <div>model checkpoints</div>
+  </div>
+</div>
+
+一句话的训练 recipe：
+
+> Sparse MoE + optimized backbone + 合适的 activation rate + 更激进的 token scaling + unique tokens 不够时，适度使用data reuse。
+
+## 2. Motivation：参数补贴这个 blind spot
+
+文献里常见两种比较方式。
+
+- 一种做法是固定数据和训练设置，然后强调 active-compute efficiency。比如 DeepSeekMoE 16B：它和 DeepSeek 7B Dense 使用同一个 2T-token corpus 训练，论文报告只用了约 40% computation 就达到与 DeepSeek 7B Dense 可比的性能，也能与 LLaMA2 7B 可比；但与此同时，它使用了更大的 total-parameter MoE reservoir [1]。
+- 另一种做法是固定 active expert budget 或目标 per-token compute，然后增加 total experts。Kimi K2 的 sparsity scaling ablation 就是这类例子，并且声称越稀疏越好 [3]。
+
+这两种做法都有价值，但它们都没有把 total parameters 锁住。这个变量不是纸面数字，它对应 capacity、HBM footprint、checkpoint size 和最小部署单元；真实系统里，当 batch size 足够大时，几乎所有 experts 都会被激活。因此更硬的问题是：如果 Dense 和 MoE 的 total parameter count 完全相同，MoE 还能不能追平甚至超过 Dense？如果可以，就说明收益不只是 parameter补贴，而是 sparsity 在训练得当时确实能成为架构优势。
+
+## 3. 资源方程
+
+对 Dense model，论文把 per-token forward computation 近似写成：
+
+$$
+M_{\text{Dense}} \approx 2N\kappa_{\text{Dense}}. \tag{1}
+$$
+
+这里 $M$ 表示 per-token forward FLOPs，$N$ 表示 total non-embedding parameters，$\kappa_{\text{Dense}}$ 吸收 sequence length、model width、FFN expansion ratio 等 Dense shape factors。
+
+对一个 total parameter count 相同的 MoE model，有：
+
+$$
+M_{\text{MoE}} \approx 2r_aN\kappa_{\text{MoE}}. \tag{2}
+$$
+
+这里 $N_a$ 表示 activated parameters，$r_a = N_a/N$ 是 activation rate，$\kappa_{\text{MoE}}$ 吸收 MoE 对应的 shape factors。当 backbone shape 固定后，$\kappa_{\text{Dense}}$ 和 $\kappa_{\text{MoE}}$ 可以近似看成常数。论文中的完整参数化推导放在中文附录 A，完整 notation 表放在中文附录 D。
+
+如果 $D$ 表示 consumed training tokens，$C$ 表示 total training compute，那么 equal training compute 给出：
+
+$$
+C_{\text{Dense}} \approx M_{\text{Dense}}D_{\text{Dense}} \approx M_{\text{MoE}}D_{\text{MoE}} \approx C_{\text{MoE}}. \tag{3}
+$$
+
+整理后得到：
+
+$$
+\frac{D_{\text{MoE}}}{D_{\text{Dense}}} \approx \frac{1}{r_a}\frac{\kappa_{\text{Dense}}}{\kappa_{\text{MoE}}} \propto \frac{1}{r_a}. \tag{4}
+$$
+
+核心置换关系就在这里。
+
+在相同 total parameter count 下，一个 20% activation-rate 的 MoE，每个 token 只付出大约 Dense 五分之一的 FFN-style compute；但如果要消耗同样的 training compute，它就需要处理大约 5 倍 tokens，具体比例会受到 shape-factor correction 的影响。
+
+论文还从另一个方向做了经验验证：在 3B 和 7B 设置下，MoE per-token FLOPs 与 $r_a$ 基本接近线性关系（图 1a）；相同计算量下的 data 消耗倍数与 $1/r_a$ 基本接近线性关系（图 1b）。
+
+<div style={{ display: "flex", gap: "18px", alignItems: "flex-start" }}>
+  <figure style={{ flex: "1", margin: "0" }}>
+    <img src="/houyi-blogs/assets/papers/moe-equal-resources/reform_datas/figs_empirical/3B_7B_ratio_comparison.png" alt="Per-token FLOPs ratio 与 activation rate 的关系" style={{ width: "100%" }} />
+    <figcaption><em>图 1a. 当 architecture shape 被控制住以后，MoE per-token FLOPs 与 activation rate 近似线性相关。</em></figcaption>
+  </figure>
+  <figure style={{ flex: "1", margin: "0" }}>
+    <img src="/houyi-blogs/assets/papers/moe-equal-resources/reform_datas/figs_empirical/3B_7B_train_token_ratio_combined.png" alt="Train-token ratio 与 1/r_a 的经验验证" style={{ width: "100%" }} />
+    <figcaption><em>图 1b. 3B 和 7B 实验验证了 MoE train-token ratio 随 activation rate 的倒数变化。</em></figcaption>
+  </figure>
+</div>
+
+## 4. 三步方法论
+
+由公式 (2)-(3) 可以看出，在忽略共同的 forward/backward 常数因子后，MoE 的训练算力大致满足 $C_{\text{MoE}} \approx 2r_aN\kappa_{\text{MoE}}D$。如果要直接做 MoE 的 compute-optimal sweep，需要同时扫描 architecture、sparsity、total parameters $N$ 和 training-token ratio $D/N$，维度远高于 Dense scaling law 里常见的 $N$、$D/N$ 两维扫描。在实验资源有限的情况下，本文选择了一条 greedy route：减少模型配置数量，但把每个配置都训到足够高的 $D/N$，让比较发生在 sufficiently trained regime，更接近训练 SOTA 模型的生产环境。
+
+![三步方法论总览](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/three_step_methodology_blog_v2_zh.svg)
+
+*图 2. 为博客重绘的三步方法论：先优化并锁定 MoE backbone，再在固定 `N` 和 `C` 下搜索 activation rate，最后用 data reuse 在 finite unique data 下做严格比较。*
+
+因此本文采用了一种 greedy strategy：先给 MoE 一个足够强的 optimized backbone，再在 fixed total parameters `N` 和 training compute `C` 下 sweep $r_a$，最后测试 data reuse 的影响。Dense baseline 也不是随便选的，而是采用了 optimal FFN ratio 的策略；因此我们希望比较的是结构上都充分优化过的 Dense 和 MoE。
+
+## 5. Step 1：Optimize the MoE architecture
+
+MoE 比 Dense 多了很多可调维度。Dense model 基本由宽高比和 FFN ratio 决定；MoE 还要选择 Dense/MoE layer mix、是否使用 shared experts、routing top-K、routed/shared expert sizes、total expert count，以及 global shape ratios。
+
+如果这些因素不先控制住，activation-rate sweep 就可能失去意义。一个坏结果也许只是在说明 MoE backbone 没调好。
+因此，architecture search 的作用是先把这个设计空间收窄，得到后续 sweep 所使用的 MoE backbone。
+
+| Component | Backbone 中采用的结论 |
+|---|---|
+| Layer arrangement | 使用 `1dense+SE`：一个初始 Dense layer，后续为带 shared experts 的 MoE layers。 |
+| Gate normalization | 在小模型 ablations 中，normalization 会降低 balance loss。 |
+| Top-K routing | 同时避免 `K = 1` 和过大的 `K`；条件允许时使用中间范围的 top-K。 |
+| Shape ratios | 搜索结果支持的是合理区间，而不是某个唯一最优值：`zeta` 在 `60-120` 左右是合理范围，`mu` 在 `20` 左右是合理范围。 |
+
+*表 1. Step 1 architecture-search 结论表。*
+
+Step 1 的核心是公平。拿 MoE 和 Dense 比之前，论文先把 MoE backbone 调到足够强。这样后面的 activation-rate sweep 问的才是一个更干净的问题：在同样总参预算下，一组结构合理的 MoE 里，什么 activation rate 最有效？`kappa_MoE` 更稳定有利于资源方程分析，但这只是 secondary benefit。Step 1 的详细实验放在附录 C。
+
+## 6. Step 2：Search the optimal activation rate
+
+<div style={{ display: "flex", gap: "18px", alignItems: "flex-start" }}>
+  <figure style={{ flex: "1", margin: "0" }}>
+    <img src="/houyi-blogs/assets/papers/moe-equal-resources/reform_datas/figs_data_reuse/2B_keep_data_clean.png" alt="2B 固定数据与固定 activation-rate 分析" style={{ width: "100%" }} />
+    <figcaption><em>图 3a. 2B scale 下，固定 activation rate 增加 tokens，与通过激活更多参数来增加 compute，是两种不同的路径。</em></figcaption>
+  </figure>
+  <figure style={{ flex: "1", margin: "0" }}>
+    <img src="/houyi-blogs/assets/papers/moe-equal-resources/reform_datas/figs_data_reuse/2B_keep_compute_clean.png" alt="2B fixed-compute activation-rate sweep" style={{ width: "100%" }} />
+    <figcaption><em>图 3b. 在 fixed total parameters 和 training compute 下，2B MoE curve 在 r<sub>a</sub> ≈ 20% 附近达到最佳，说明 MoE 不是 “the sparser, the better”。</em></figcaption>
+  </figure>
+</div>
+
+**图 3a 的解释是。** 横轴是 total training compute，纵轴是 BPC（越低越好）。气泡大小表示 consumed training tokens。每条虚线固定 activation rate 并增加 tokens；沿着这些线往右走，更多 tokens 会稳定地、几乎 log-log linear 地降低 BPC，这符合常见的 data-scaling 直觉。绿色实线则固定 data budget 为 `D = 114B`，从 sparse 到 dense 改变 $r_a$。这把两种花 compute 的方式分开了：一种是在固定 $r_a$ 下喂更多 tokens，另一种是在固定 data 下激活更多参数。
+
+**图 3b 这样读。** 横轴是 $r_a$，纵轴是 BPC。蓝色曲线是同一 total training compute 下的 2B MoE family。气泡大小仍然表示在这个 fixed-compute budget 下每个 MoE 实际消耗了多少 tokens。黑色水平线是 same-compute 2B Dense baseline，红色点划线是使用更多 compute 和更多 data 训练的更强 Dense baseline。
+
+**Findings.**
+
+1. 固定 $r_a$ 时，多喂 tokens 会稳定改善 BPC，这符合常见的 data-scaling 直觉。但当 training tokens 和 total parameters 固定，training compute 只是因为 MoE 激活更多参数而增加时，BPC-compute 关系不再落在同一条平滑 scaling curve 上。这说明 optimal activation region 是可能存在的。
+2. 在 fixed total parameters 和 fixed compute 下，MoE 不是越稀疏越好。真正有效的是一个中等稀疏度区间，大致在 10%-30%，2B 上最清楚的点在 $r_a \approx 20\%$ 附近。
+
+## 7. Step 3：Data reuse, 7B validation, and downstream value
+
+### 7.1 Step3A：3B activation-rate search under data reuse
+
+3B 实验是对 data reuse 的第一层压力测试。它基本固定 total parameters 和 training compute，然后比较两组 MoE family：一组 unique tokens 接近 Dense-1C data budget，另一组 unique-token budget 更大。纵轴是相对 Dense-1C baseline 的 Delta BPC，越低越好；负值表示 MoE 优于 Dense-1C。
+
+图 4 和表 2 要一起读。图给出完整的 3B activation-rate pattern；表只看更严格的 `MoE-65B` 设置，也就是更直接地检验：当 unique data 基本接近 Dense-1C 时，MoE 是否仍然有竞争力。
+
+<figure style={{ margin: "0" }}>
+  <img src="/houyi-blogs/assets/papers/moe-equal-resources/reform_datas/figs_data_reuse/3B_data_reuse_degradation_viz.png" alt="3B activation-rate 与 data-reuse 对比" style={{ width: "100%" }} />
+  <figcaption><em>图 4. Step3A 的 3B-scale 结果。深绿色实线是 `MoE-65B`，unique tokens 被控制在 Dense-1C budget 附近（`1.04x`，约 65B tokens）。绿色虚线是 `MoE-114B`，unique-token budget 更宽松，约为 Dense-1C 的 `1.82x`。红色虚线是严格目标 `Delta BPC = -0.004`，阴影区域标出图中标注的 optimal region。</em></figcaption>
+</figure>
+
+<table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.86em", lineHeight: "1.25" }}>
+      <thead>
+        <tr>
+          <th style={{ textAlign: "left", borderBottom: "1px solid #d0d7de", padding: "4px" }}>Model</th>
+          <th style={{ textAlign: "right", borderBottom: "1px solid #d0d7de", padding: "4px" }}>C</th>
+          <th style={{ textAlign: "right", borderBottom: "1px solid #d0d7de", padding: "4px" }}>r<sub>a</sub></th>
+          <th style={{ textAlign: "right", borderBottom: "1px solid #d0d7de", padding: "4px" }}>FLOPs/tok.</th>
+          <th style={{ textAlign: "right", borderBottom: "1px solid #d0d7de", padding: "4px" }}>Train tok.</th>
+          <th style={{ textAlign: "right", borderBottom: "1px solid #d0d7de", padding: "4px" }}>Unique tok.</th>
+          <th style={{ textAlign: "right", borderBottom: "1px solid #d0d7de", padding: "4px" }}>Reuse</th>
+          <th style={{ textAlign: "right", borderBottom: "1px solid #d0d7de", padding: "4px" }}>ΔBPC</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td style={{ padding: "4px" }}>Dense-1C baseline</td><td style={{ textAlign: "right", padding: "4px" }}>1.00x</td><td style={{ textAlign: "right", padding: "4px" }}>100.0%</td><td style={{ textAlign: "right", padding: "4px" }}>100.0%</td><td style={{ textAlign: "right", padding: "4px" }}>1.00x</td><td style={{ textAlign: "right", padding: "4px" }}>1.00x</td><td style={{ textAlign: "right", padding: "4px" }}>1.00</td><td style={{ textAlign: "right", padding: "4px" }}>0.0000</td></tr>
+        <tr><td style={{ padding: "4px" }}>MoE-65B-Exp3</td><td style={{ textAlign: "right", padding: "4px" }}>1.00x</td><td style={{ textAlign: "right", padding: "4px" }}>14.70%</td><td style={{ textAlign: "right", padding: "4px" }}>16.7%</td><td style={{ textAlign: "right", padding: "4px" }}>5.99x</td><td style={{ textAlign: "right", padding: "4px" }}>1.04x</td><td style={{ textAlign: "right", padding: "4px" }}>5.77</td><td style={{ textAlign: "right", padding: "4px" }}>-0.0059</td></tr>
+        <tr><td style={{ padding: "4px" }}>MoE-65B-Exp4</td><td style={{ textAlign: "right", padding: "4px" }}>1.01x</td><td style={{ textAlign: "right", padding: "4px" }}>18.83%</td><td style={{ textAlign: "right", padding: "4px" }}>20.4%</td><td style={{ textAlign: "right", padding: "4px" }}>4.94x</td><td style={{ textAlign: "right", padding: "4px" }}>1.04x</td><td style={{ textAlign: "right", padding: "4px" }}>4.75</td><td style={{ textAlign: "right", padding: "4px" }}>-0.0076</td></tr>
+        <tr><td style={{ padding: "4px" }}>MoE-65B-Exp5</td><td style={{ textAlign: "right", padding: "4px" }}>0.99x</td><td style={{ textAlign: "right", padding: "4px" }}>27.12%</td><td style={{ textAlign: "right", padding: "4px" }}>27.6%</td><td style={{ textAlign: "right", padding: "4px" }}>3.56x</td><td style={{ textAlign: "right", padding: "4px" }}>1.04x</td><td style={{ textAlign: "right", padding: "4px" }}>3.43</td><td style={{ textAlign: "right", padding: "4px" }}>-0.0039</td></tr>
+        <tr><td style={{ padding: "4px" }}>MoE-65B-Exp6</td><td style={{ textAlign: "right", padding: "4px" }}>0.99x</td><td style={{ textAlign: "right", padding: "4px" }}>34.75%</td><td style={{ textAlign: "right", padding: "4px" }}>34.3%</td><td style={{ textAlign: "right", padding: "4px" }}>2.88x</td><td style={{ textAlign: "right", padding: "4px" }}>1.04x</td><td style={{ textAlign: "right", padding: "4px" }}>2.77</td><td style={{ textAlign: "right", padding: "4px" }}>-0.0047</td></tr>
+      </tbody>
+</table>
+
+*表 2. 3B Step3A resource table。这里选出的 MoE rows 基本使用和 Dense-1C 相同的 unique-token budget，但通过 reuse 消耗更多 training tokens。BPC deltas 相对 Dense-1C 计算，越低越好。*
+
+关键不是“所有 reuse setting 都一样好”，而是：即使 unique tokens 几乎被压在 Dense-1C budget 附近，一个中等 activation rate 仍然可以让 MoE 在大致相同 total parameters 和 compute 下超过 Dense-1C。表里最好的点是 `MoE-65B-Exp4`，$r_a = 18.83\%$，`Delta BPC = -0.0076`。
+
+### 7.2 Step3B：7B data reuse, the sweet spot, and the resource table
+
+到 7B 时，论文换成更难的 baseline。由于这些 MoE 在 equal total parameters 和 compute 下已经超过 Dense-1C，图 5a 直接把 Dense-2C 作为 reference line。纵轴是相对 Dense-2C 的 Delta BPC；低于 0 表示 MoE 好于一个大约用 2 倍 compute 和 2 倍 unique tokens 训练的 Dense。
+
+<div style={{ display: "flex", gap: "18px", alignItems: "flex-start", flexWrap: "wrap" }}>
+  <figure style={{ flex: "1 1 360px", margin: "0" }}>
+    <img src="/houyi-blogs/assets/papers/moe-equal-resources/reform_datas/figs_data_reuse/7B_data_reuse_degradation_viz.png" alt="7B activation-rate 与 data-reuse 对比" style={{ width: "100%" }} />
+    <figcaption><em>图 5a. Step3B 的 7B-scale 结果。深绿色实线是不做 data reuse 的 MoE，绿色虚线表示 two epochs，橙色点划线表示 strict 68B setting。红色水平虚线是 Dense-2C，阴影区域标出图中标注的 optimal region。</em></figcaption>
+  </figure>
+  <figure style={{ flex: "1 1 360px", margin: "0" }}>
+    <img src="/houyi-blogs/assets/papers/moe-equal-resources/reform_datas/figs_data_reuse/7B_data_reuse_impact.png" alt="7B MoE data reuse impact" style={{ width: "100%" }} />
+    <figcaption><em>图 5b. 同一组 7B 实验的 data reuse impact。每条线固定一个 activation rate，横轴随着 reuse epochs 增加而移动。阴影区域标出 low-degradation reuse regime。</em></figcaption>
+  </figure>
+</div>
+
+图 5a 和图 5b 从两个角度看同一组 7B trade-off。图 5a 里，不做 reuse 的 MoE 可以在较宽的中等 activation-rate 区间超过 Dense-2C，但要用多得多的 unique tokens；two epochs 后，同一区间仍然超过 Dense-2C，同时 unique data 需求明显下降；到了 strict 68B cap，大多数 activation rates 会掉队，但 $r_a = 20.07\%$ 仍然能对齐 Dense-2C。图 5b 则把 reuse 这个轴展开：适度 reuse 可以保留甚至提升 MoE 表现，过度 reuse 会明显退化，尤其是在 activation rate 过低时。
+
+| Model / strategy | $r_a$ | Unique tokens | Reuse epochs | FLOPs/token vs Dense | BPC | Delta BPC vs Dense-2C |
+|---|---:|---:|---:|---:|---:|---:|
+| Dense-1C | 100.00% | 68B | 1.00 | 100.0% | 0.4736 | +0.0142 |
+| Dense-2C | 100.00% | 130B | 1.00 | 100.0% | 0.4594 | 0.0000 |
+| MoE-Unique | 11.19% | 511B | 1.00 | 13.3% | 0.4624 | +0.0030 |
+| MoE-Unique | 13.41% | 443B | 1.00 | 15.3% | 0.4580 | -0.0014 |
+| MoE-Unique | 15.63% | 390B | 1.00 | 17.4% | 0.4571 | -0.0023 |
+| MoE-Unique | 20.07% | 316B | 1.00 | 21.5% | 0.4543 | -0.0051 |
+| MoE-Unique | 26.18% | 250B | 1.00 | 27.2% | 0.4580 | -0.0014 |
+| MoE-2Ep | 11.19% | 256B | 2.00 | 13.3% | 0.4591 | -0.0003 |
+| MoE-2Ep | 13.41% | 221B | 2.00 | 15.3% | 0.4557 | -0.0037 |
+| MoE-2Ep | 15.63% | 195B | 2.00 | 17.4% | 0.4550 | -0.0044 |
+| MoE-2Ep | 20.07% | 158B | 2.00 | 21.5% | 0.4549 | -0.0045 |
+| MoE-2Ep | 26.18% | 125B | 2.00 | 27.2% | 0.4570 | -0.0024 |
+| MoE-68B | 11.19% | 68B | 7.52 | 13.3% | 0.4656 | +0.0062 |
+| MoE-68B | 13.41% | 68B | 6.51 | 15.3% | 0.4618 | +0.0024 |
+| MoE-68B | 15.63% | 68B | 5.74 | 17.4% | 0.4601 | +0.0007 |
+| MoE-68B | 20.07% | 68B | 4.65 | 21.5% | 0.4590 | -0.0004 |
+| MoE-68B | 26.18% | 68B | 3.67 | 27.2% | 0.4597 | +0.0003 |
+
+*表 3. 7B Step3B resource table，对应图 5a 和图 5b。Deltas 相对 Dense-2C 计算；BPC 越低越好。值得注意的一行是 `MoE-68B` 在 $r_a = 20.07\%$：同一 total-parameter scale，68B unique tokens，`4.65` reuse epochs，per-token FLOPs 只有 `21.5%`，BPC `0.4590`，与 Dense-2C 的 `0.4594` 可比。这意味着，选对 activation rate 后，即使 unique tokens 被严格限制，MoE 仍然可以用更多 consumed tokens 换来 activation-rate 量级的 per-token FLOPs。*
+
+### 7.3 Step3C：Downstream evaluation after SFT
+
+Downstream 这一节的价值在于，它检查 activation-rate story 是否只是 pretraining BPC 上的现象。论文在 29 个 benchmarks 上评估 7B pre-trained 和 SFT-ed models，覆盖 reasoning、knowledge、Math、Code 等类别。Math/Code 的绝对分数需要结合附录 E 的 data-recipe 说明来读。
+
+<div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "14px", alignItems: "start" }}>
+  <figure style={{ margin: "0" }}>
+    <img src="/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/pt_avg.png" alt="Pretrain average downstream accuracy" style={{ width: "100%" }} />
+    <figcaption><em>图 6a. Pretrain average accuracy。</em></figcaption>
+  </figure>
+  <figure style={{ margin: "0" }}>
+    <img src="/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/sft_avg.png" alt="SFT average downstream accuracy" style={{ width: "100%" }} />
+    <figcaption><em>图 6b. SFT average accuracy。</em></figcaption>
+  </figure>
+  <figure style={{ margin: "0" }}>
+    <img src="/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/sft_knowledge.png" alt="SFT knowledge downstream accuracy" style={{ width: "100%" }} />
+    <figcaption><em>图 6c. SFT knowledge accuracy。</em></figcaption>
+  </figure>
+  <figure style={{ margin: "0" }}>
+    <img src="/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/sft_reasoning.png" alt="SFT reasoning downstream accuracy" style={{ width: "100%" }} />
+    <figcaption><em>图 6d. SFT reasoning accuracy。</em></figcaption>
+  </figure>
+</div>
+
+*图 6. Step3C 的 7B aligned models downstream evaluation。蓝色实线使用 unique data，青色虚线使用 strict data reuse，红色点划线是 Dense-2C baseline。与 BPC 图不同，这里 accuracy 越高越好。*
+
+结果不只是“MoE 在 validation loss 上赢了”。当 $r_a \approx 20\%$ 时，MoE 在 SFT 后仍然很强；其中 unique-data MoE 相对 Dense 对照组的优势最清楚。Strict-reuse MoE 整体仍有竞争力，并且在 reasoning 上尤其强；但 downstream curves 也暴露出一个重要的 capability split：data reuse 对 reasoning 的影响相对小，而 unique tokens 减少时，knowledge-oriented benchmarks 更容易退化。换句话说，对于 MoE，重复数据可以强化 reasoning，但不能完全替代缺失的 world knowledge。
+
+因此 Step3C 不只是一个附带验证。它说明 activation-rate sweet spot 对 aligned models 也有意义，同时也说明 data reuse 更适合用在什么地方：reasoning 更能承受，knowledge coverage 更敏感。
+
+## 8. Practical recipe and final takeaway
+
+对训练 SOTA MoE LLM 的团队来说，这篇论文给出的不是一句“做稀疏化”，而是一套更具体的 guidance。
+
+1. **Equal-ground superiority.** 比较 Dense 和 MoE 时，要严格对齐 total parameters $N$、training compute $C$ 和 unique data。在这个 equal ground 下，优化过的 MoE 可以追平甚至超过 Dense；比较对象不应该只是 active-parameter count。
+2. **Scale-aware optimal sparsity.** “Sparser is better” 是错觉。本文 2B、3B、7B sweeps 里，有效 activation-rate region 不窄，但也不是任意的：大致在 10%-30%，最清楚的 sweet spot 在 20% 附近。
+3. **The fundamental trade-off.** MoE 用更高的 consumed-token demand 换取大幅 per-token FLOPs reduction。当 $r_a \approx 20\%$ 时，资源方程意味着需要大约 $5\times$ consumed tokens；7B sweet-spot row 只有 Dense 的 `21.5%` per-token FLOPs，也就是在相同 total-parameter footprint 下约 `5x` 的 inference-side FLOPs reduction。
+4. **Data reuse works, within limits.** 当 unique data 有限时，multi-epoch reuse 可以保住 MoE advantage。在 7B sweep 里，moderate reuse window 仍然有效；reasoning 相对更能承受 repeated data，而 knowledge coverage 更敏感。
+
+例如，我们想训练一个 1T-total-parameter 的 MoE model。作为对比，一个 1T Dense model 按 Chinchilla 需要约 20T tokens。如果这个 MoE 选择 100B active parameters，也就是 10% activation rate，那么要以 Dense-level performance 为目标，就应该为约 200T consumed tokens 做预算。如果 unique data 不够，moderate multi-epoch reuse 可以帮忙。
+
+这篇 Paper 对于想训练 frontier model 的团队的启发在于：它把 MoE scaling 从一句含糊的 “sparse is efficient”，落成一个资源配方：选择合适的 activation rate，采用更加激进的 data scaling 策略；当 unique tokens 不够时，可以适度使用 data reuse，例如控制在大约 3 epochs 以内。
+
+---
+
+## II-A. 中文附录
+
+## 附录 A：资源方程的详细推导
+
+本章节详细展开资源方程的推导，说明为什么在 same total parameters 和 same training compute 下，MoE 需要消耗大约 $1/r_a$ 倍 training tokens。
+
+### A.1 先固定比较对象
+
+比较对象先固定：Dense model 和 MoE model 拥有相同的 total non-embedding parameter count `N`。令 `M` 表示 per-token forward FLOPs，`D` 表示 consumed training tokens，`C` 表示 total training compute。训练算力近似为：
+
+$$
+C \approx 3MD. \tag{5}
+$$
+
+这里的系数 `3` 对应常见的 forward-plus-backward cost。做 equal-`C` 比较时，这个系数会在 Dense 和 MoE 两边抵消。
+
+### A.2 Dense：把 architecture shape 写进 per-token FLOPs
+
+对 Dense Transformer，论文第 3 节把 non-embedding parameter count 近似为：
+
+$$
+N_{\text{Dense}} \approx (4+3\alpha)D_m^2L = (4+3\alpha)\zeta^2L^3. \tag{6}
+$$
+
+其中 `D_m` 是 model width，`L` 是 layers 数量，`alpha = D_ffn / D_m`，`zeta = D_m / L`。
+
+对应的 per-token forward FLOPs 为：
+
+$$
+M_{\text{Dense}} \approx 2N_{\text{Dense}} + 4D_mSL = 2N_{\text{Dense}}\left(1+\frac{2\gamma_d}{4+3\alpha}\right). \tag{7}
+$$
+
+第二个等号的关键，是把 attention term 改写到 `N_Dense` 的量纲下。由于：
+
+$$
+D_m^2L \approx \frac{N_{\text{Dense}}}{4+3\alpha}, \qquad \gamma_d=\frac{S}{D_m}. \tag{8}
+$$
+
+可以得到：
+
+$$
+D_mSL = \frac{S}{D_m}D_m^2L = \gamma_dD_m^2L \approx \frac{\gamma_d}{4+3\alpha}N_{\text{Dense}}. \tag{9}
+$$
+
+因此：
+
+$$
+4D_mSL \approx \frac{4\gamma_d}{4+3\alpha}N_{\text{Dense}} = 2N_{\text{Dense}}\frac{2\gamma_d}{4+3\alpha}. \tag{10}
+$$
+
+也就是：
+
+$$
+2N_{\text{Dense}}+4D_mSL \approx 2N_{\text{Dense}}\left(1+\frac{2\gamma_d}{4+3\alpha}\right). \tag{11}
+$$
+
+这里 `S` 是 sequence length，`gamma_d = S / D_m`。第一项来自 parameter-dominated Transformer computation，第二项来自 attention 的 sequence-length term。为了让后面的 trade-off 更清楚，把这些 shape-dependent multiplier 合并为：
+
+$$
+\kappa_{\text{Dense}} = 1+\frac{2\gamma_d}{4+3\alpha}. \tag{12}
+$$
+
+于是 Dense 的 per-token FLOPs 可以写成：
+
+$$
+M_{\text{Dense}} \approx 2N_{\text{Dense}}\kappa_{\text{Dense}}. \tag{13}
+$$
+
+### A.3 MoE：区分 total parameters 和 activated parameters
+
+到 MoE Transformer，total parameters 和 activated parameters 就分开了。在只有部分层是 MoE layers 的一般设定下，论文写成：
+
+$$
+N_{\text{MoE}} \approx (4+3\mu)D_m^2L_e + (4+3\alpha)D_m^2L_d. \tag{14}
+$$
+
+$$
+N_a \approx (4+3\beta)D_m^2L_e + (4+3\alpha)D_m^2L_d. \tag{15}
+$$
+
+这里 `L_e` 是 MoE layers 数量，`L_d` 是 Dense layers 数量，`mu = (D_se + E D_e) / D_m`，`beta = (D_se + K D_e) / D_m`。这些近似会忽略 RMSNorm scale vectors、router/gate parameters、bias、embedding parameters 等小项。Activation rate 定义为：
+
+$$
+r_a=\frac{N_a}{N_{\text{MoE}}}. \tag{16}
+$$
+
+沿用 Dense 推导中的 FLOPs convention，MoE 的 per-token FLOPs 由 activated-parameter computation 加 attention term 构成：
+
+$$
+M_{\text{MoE}} \approx 2N_a + 4D_mSL = 2r_aN_{\text{MoE}} + 4D_mSL. \tag{17}
+$$
+
+为了把 $r_a$ 的作用单独拎出来，论文用一个简单的 all-MoE case 来说明。此时 `L_d = 0`，所以：
+
+$$
+r_a \approx \frac{4+3\beta}{4+3\mu}. \tag{18}
+$$
+
+$$
+M_{\text{MoE}} \approx 2r_aN_{\text{MoE}} \left(1+\frac{2\gamma_m}{4+3\beta}\right). \tag{19}
+$$
+
+定义 MoE 的 shape multiplier：
+
+$$
+\kappa_{\text{MoE}} = 1+\frac{2\gamma_m}{4+3\beta}. \tag{20}
+$$
+
+则 MoE 的 per-token FLOPs 为：
+
+$$
+M_{\text{MoE}} \approx 2r_aN_{\text{MoE}}\kappa_{\text{MoE}}. \tag{21}
+$$
+
+### A.4 Equal total parameters 给出 per-token compute ratio
+
+我们保持总参一致：
+
+$$
+N_{\text{Dense}} = N_{\text{MoE}} = N. \tag{22}
+$$
+
+代入 Dense 和 MoE 的 FLOPs 表达式：
+
+$$
+R_c = \frac{M_{\text{MoE}}}{M_{\text{Dense}}} \approx r_a \frac{\kappa_{\text{MoE}}}{\kappa_{\text{Dense}}}. \tag{23}
+$$
+
+当 architecture shape 固定后，`kappa_Dense` 和 `kappa_MoE` 可以近似看作常数。因此，MoE/Dense per-token FLOPs ratio 会基本跟着 $r_a$ 线性变化。图 1a 经验上检查的正是这一点。
+
+这就是 inference 侧的账：在相同 total-parameter footprint 下，$r_a$ 越小，per-token FLOPs 越接近 activation-rate 量级。
+
+### A.5 Equal training compute 推出 token multiplier
+
+再加入 equal training compute：
+
+$$
+3M_{\text{Dense}}D_{\text{Dense}} \approx 3M_{\text{MoE}}D_{\text{MoE}}. \tag{24}
+$$
+
+消去系数 `3` 并整理：
+
+$$
+\frac{D_{\text{MoE}}}{D_{\text{Dense}}} \approx \frac{M_{\text{Dense}}}{M_{\text{MoE}}} = \frac{1}{R_c} \approx \frac{1}{r_a} \frac{\kappa_{\text{Dense}}}{\kappa_{\text{MoE}}}. \tag{25}
+$$
+
+当 shape multipliers 被固定且量级可比时，主导项就是：
+
+$$
+\frac{D_{\text{MoE}}}{D_{\text{Dense}}} \propto \frac{1}{r_a}. \tag{26}
+$$
+
+这就是正文核心 claim 的数学来源：在 fixed total parameters 和 fixed training compute 下，MoE 用大约 $1/r_a$ 倍 training tokens，换取约 $r_a$ 倍的 per-token FLOPs。
+
+### A.6 为什么 Step 1 必须在 activation-rate sweep 之前
+
+主要原因是要对 MoE 侧公平。拿 MoE 和调好的 Dense baseline 比之前，论文必须先给 MoE 一个合理优化过的 architecture；否则，差结果可能只是 MoE backbone 没选好。Step 1 因此搜索 layer arrangement、shared experts、routing/top-K choices、expert allocation 和 shape ratios，用来建立一个 strong MoE backbone。
+
+Backbone 固定之后，还有一个额外好处：`kappa_MoE` 和其他 shape factors 不会随着每个 $r_a$ 点一起变化，所以 sweep 更干净。但这不是主因。Step 1 的主因是让 Dense 去和这项研究能找到的最佳 MoE configuration 比较，而不是和一个 under-optimized sparse model 比较。
+
+## 附录 B：相关工作说明
+
+### B.1 DeepSeekMoE 和 DeepSeek-V2
+
+DeepSeekMoE 16B vs 7B Dense 是第一类比较方式里典型的例子。DeepSeekMoE 论文把 MoE 扩到 `16B` total parameters，并在 `2T`-token corpus 上训练。论文报告 DeepSeekMoE 16B 能达到与同样使用 `2T` corpus 训练的 Dense DeepSeek 7B 可比的性能，同时只用约 `40%` computation；它也能达到与 LLaMA2 7B 可比的表现，而 LLaMA2 7B 的 activated parameters 大约是它的 `2.5x` [1]。
+
+这是很强的 active-compute efficiency 结果，但它不是 equal-total-parameter comparison：MoE 有 `16B` total parameters，而 Dense reference 是 `7B`。所以它回答的是：当 sparse model 可以使用更大的 total expert reservoir 时，能不能做到很高的 compute efficiency。它没有直接回答 total parameters `N` 固定时，MoE 能否追平 Dense。DeepSeek-V2 后续把同一类 sparse-MoE 路线扩展到 `236B` total parameters / `21B` activated parameters [2]，进一步说明这条路线的工程价值，也说明为什么需要控制 total parameters。
+
+### B.2 Kimi K2 sparsity scaling
+
+Kimi K2 是第二类比较方式的清楚例子。在 sparsity scaling law experiment 中，它固定 `8` 个 activated experts 和 `1` 个 shared expert，通过改变 total experts 数量构造 sparsity `8` 到 `64` 的模型。报告显示，increasing sparsity 会持续降低 training 和 validation loss；最终 Kimi K2 采用 sparsity `48`，每次 forward 在 `384` 个 experts 中激活 `8` 个 [3]。
+
+这个结果同样有价值，但它也不是 equal-total-parameter Dense-vs-MoE comparison。实验固定的是 active expert count / per-token compute，而不是 total parameters；它允许 total expert pool 增长，也就是 total parameters 增长。
+
+## 附录 C：Step 1 architecture-search evidence
+
+这个附录展开 Step 1 architecture search，说明论文如何在 activation-rate sweep 之前先收窄 MoE 的设计空间。
+
+### C.1 Layer arrangement and shared experts
+
+论文首先测试 Dense 和 MoE layers 怎么排。共同超参数是 `D_m = 1408`、`D_ffn = 3904`、`Norm = True`。实验比较 `full`、`interleave`、`1dense` 以及 shared-expert variants。
+
+![MoE layer arrangement 与 shared expert 结果](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/arch_table_layer_arrangement.png)
+
+*附录表 C1. MoE layer arrangement 和 shared experts 的实验设置与结果。*
+
+这张表可以分三层读。第一，初始组里，`interleave` 优于 `full`（training loss `1.6766` 或 `1.6697` vs. `1.6813`）。第二，更大的比较组里，`1dense+SE` 是最强设置，`1.8557` 优于对应的 `interleave` rows（`1.8737` 和 `1.8620`）。第三，最后一组里，shared-expert ratio 的影响很小（`1.6752`、`1.6712`、`1.6726`）。因此论文后续采用 `1dense+SE`，并设置 `D_se = K D_e`。
+
+### C.2 Gate score normalization
+
+Gate-normalization 实验使用 `Scheme = 1dense`、`L = 17`、`D_m = 1408`、`D_ffn = 3904`、`H = 22`、`D_h = 64`。
+
+![Gate score normalization 结果](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/arch_table_gate_norm.png)
+
+*附录表 C2. Gate score normalization 的实验设置与结果。*
+
+在这些小模型 ablations 中，loss 差异很小：有 shared experts 时，normalization 是 `1.6726`，no normalization 是 `1.6712`；没有 shared experts 时，对应是 `1.6752` vs. `1.6750`。更清楚的影响体现在 balance loss：有 shared-expert setting 中，normalization 将 average balance loss 从 `1.452` 降到 `1.355`；无 shared-expert setting 中，从 `1.440` 降到 `1.409`。
+
+这里要直接承认 limitation：这不是一个“应该避免 normalization”的通用建议。后续更大尺度实验显示 normalization 显著优于 no normalization。外推到更大模型时，应优先使用 normalized routing。关闭 normalization 不改变本文在小模型 setting 下的结论，但不应该被当作 large-scale recipe。
+
+### C.3 Top-K routing and expert granularity
+
+Top-K 实验固定 `Scheme = 1dense`、`L = 16`、`D_m = 1408`、`D_ffn = 3904`、`H = 11`、`D_h = 128`、`Norm = False`，并在几个 activation-rate regions 中改变 `K` 和 expert size。
+
+![Top-K routing 结果](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/arch_table_topk.png)
+
+*附录表 C3. Top-K routing 的实验设置与结果。*
+
+这张表支持的是有边界的结论，而不是某个 universal `K`。在 $r_a \approx 27\%$ 时，`K = 11` 优于 `K = 1`（`2.0338` vs. `2.0470`）。在更高 activation rates 下，过大的 `K` 反而不如小一些的 `K`：$r_a \approx 44\%$ 时 `K = 2` 优于 `K = 22`（`1.9996` vs. `2.0266`），$r_a \approx 58\%$ 时 `K = 3` 优于 `K = 33`（`2.0156` vs. `2.0235`）。因此论文的实践选择是：尽可能避免 `K = 1`，也避免过大的 `K`。
+
+### C.4 Shape-ratio search
+
+最后，论文在 `Scheme = 1dense`、`S = 16384`、`D_h = 128` 下搜索 shape ratios。完整表格在论文 appendix 中；下图总结了这个趋势。
+
+![MoE shape-ratio search](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/arch_fig_shape_ratios.png)
+
+*附录图 C1. 对 `zeta = D_m / L` 和 `mu = (D_se + E D_e) / D_m` 的 shape-ratio search。*
+
+论文明确说明：固定某个 `zeta` 或 `mu` 时，performance fluctuation 仍然明显，所以这里不应被解读为精确 scaling law。更稳妥的读法是区间级结论：`zeta` 在约 `60-120` 是合理范围，`mu` 在 `20` 左右是合理范围。后续 activation-rate experiments 应理解为在这个合理 backbone region 内选了一个代表性设置，而不是证明 `zeta = 88` 和 `mu = 22` 是唯一最优点。
+
+## 附录 D：Notation
+
+这个表参考论文 Table 1，并补充正文博客中额外使用的两个 shorthand。
+
+| Symbol | Definition | Symbol | Definition |
+|---|---|---|---|
+| $D$ | Dataset size / consumed training tokens。 | $M$ | Per-token FLOPs，不含 embedding。 |
+| $C$ | Total training compute，近似为 $M \cdot D$。 | $N$ | Non-vocabulary / non-embedding parameters。 |
+| $N_a$ | Activated parameters。 | $r_a$ | Activation rate，$N_a/N$。 |
+| $L_e$ | MoE layers 数量。 | $L_d$ | Dense layers 数量。 |
+| $L$ | 总层数，$L_e + L_d$。 | $\alpha$ | FFN expansion ratio，$D_{\text{ffn}}/D_m$。 |
+| $\zeta$ | Model aspect ratio，$D_m/L$。 | $\gamma$ | Sequence-to-width ratio，$S/D_m$。 |
+| $S$ | Sequence length。 | $H$ | Attention heads 数量。 |
+| $D_m$ | Model hidden dimension。 | $D_{\text{ffn}}$ | FFN hidden dimension。 |
+| $D_h$ | Attention head dimension。 | $D_e$ | Expert hidden dimension。 |
+| $D_{\text{se}}$ | Shared-expert hidden dimension。 | $E$ | Experts 数量。 |
+| $K$ | Number of chosen experts。 | $\beta$ | MoE layers 中的 activated FFN-to-model ratio，$(D_{\text{se}}+KD_e)/D_m$。 |
+| $\mu$ | MoE layers 中的 total FFN-to-model ratio，$(D_{\text{se}}+ED_e)/D_m$。 | $\kappa_{\text{Dense}}$, $\kappa_{\text{MoE}}$, $R_c$ | 博客中的 shorthand：shape multipliers 和 per-token FLOPs ratio，$R_c=M_{\text{MoE}}/M_{\text{Dense}}$。 |
+
+## 附录 E：Pretraining data recipe and downstream-score interpretation
+
+论文 Appendix Table 3 给出了 pretraining mixture，并和 LLaMA-1 recipe 做了对比 [4]。这张表对理解 downstream results 很重要：本文有意使用简单的 LLaMA-1-style mixture，而不是现代工业模型常用的 domain-boosted recipe。
+
+| Dataset class | Our recipe | Our dataset detail | LLaMA-1 recipe | LLaMA-1 dataset detail | Diff |
+|---|---:|---|---:|---|---:|
+| WebData-en | 79.53% | CC (English) | 82.00% | 67% CC + 15% C4 (English) | -2.47% |
+| Code | 4.62% | The Stack | 4.50% | Github-Big Query | +0.12% |
+| Wikipedia | 5.06% | en: 1.69%, cn: 0.13%, others: 3.24% | 4.50% | multi-lingual | +0.56% |
+| Book | 5.18% | open-source English books | 4.50% | Book3, Gutenberg | +0.68% |
+| arXiv | 3.38% | as class name | 1.06% | as class name | +2.32% |
+| StackExchange | 2.21% | as class name | 2.00% | as class name | +0.21% |
+
+*附录表 E1. 论文 Table 3：pretraining data recipe compared with the LLaMA-1 recipe。*
+
+这个数据选择也决定了 downstream scores 应该如何解读。我们的目标不是用现代 domain-boosted recipe 去最大化绝对 benchmark 分数，而是在同一套受控 pretraining mixture 下比较 Dense 和 MoE。由于这套 corpus 接近 LLaMA-1，约 80% 是 generic web data，显式 code data 只有 4.62%，高纯度 math/code/knowledge 内容在训练数据中并不密集。因此，Math/Code/knowledge 的绝对分数不应被看作这篇论文的主要目标。
+
+## 附录 F：Limitation and Discussion
+
+这里有四个 limitation 需要直接说明。
+
+第一，数据配比有时代限制。这个工作的实验设计发生在 2024 年前后的 pretraining recipe 语境里；为了让 7B Dense baseline 能和 LLaMA-1 7B 有可解释的参照，论文使用了接近 LLaMA-1 的数据配比。这样做让 Dense-vs-MoE 的 controlled comparison 更干净，但也导致 downstream benchmark 的绝对分数不够现代。如果今天重新做，我会加入受控的 high-quality annealing stage，让更多 downstream benchmark 能直接成为 MoE 和 Dense 能力差异的观测窗口。不过这个操作并不简单，尤其是在 MoE 和 Dense 的 consumed tokens、unique tokens 不完全相同的情况下，数据账必须重新设计得非常干净。因此，这个 limitation 主要影响 downstream 绝对分数，不影响本文最核心的 MoE data-per-token-FLOPs trade-off 结论。
+
+第二，部分 architecture choice 也有时代限制。模型使用了 ALiBi positional encoding 等现在看来偏旧的设计。Gate normalization 也应该放在这个语境下理解：在本文的小模型 ablation 中，normalization 主要降低 balance loss，对 loss 本身影响很小；但后续更大尺度实验显示 normalized routing 明显更好。因此如果外推本文 recipe 到更大模型，应该优先使用 normalized routing。这个问题不会推翻本文主体结论，因为在本文小模型设置下它不是驱动 activation-rate trade-off 的主要变量。
+
+第三，architecture search 是 greedy 的。论文先搜索一个强 MoE backbone，再固定 backbone 去 sweep $r_a$。这样做的好处很明确：节省大量算力，也能让 $\kappa_{\text{MoE}}$ 等 shape factors 更稳定，使 activation-rate sweep 更干净。局限是，不同 $r_a$ 上可能存在不同的 optimal architecture。最理想的实验，是每一个 $r_a$ 点都重新做一次 architecture search；但这会把 architecture grid 和 activation-rate grid 乘起来，实验成本接近平方级增长。我们后来在 13% activation-rate 附近尝试过重新做 architecture search，那个点确实会变好，能接近 Dense baseline，但仍然没有超过 $r_a \approx 20\%$ 的点。因此，这个 limitation 可能改变或移动 optimal AR region 的位置，但不太可能抹掉 optimal region 的存在性。
+
+第四，实验规模只做到 7B。7B ablation 其实做了很精巧的控制变量设计：不同稀疏度的 MoE LLM 使用相同的 layer count $L$ 和 hidden dimension $D_m$。保持 $L$ 是为了让有效深度一致，保持 $D_m$ 是为了让 ResNet-style 主干里的信息通道宽度一致。MoE 的稀疏度主要和 $\beta$、$\mu$ 有关，而不是和 $L$、$D_m$ 有关；因此在固定 $N$、$L$、$D_m$ 时，$\mu$ 基本被定住，sweep $r_a$ 本质上是在控制 $\beta$。这是非常严谨的控制变量法。但它也带来一个尺度问题：本文中过于 sparse 的 10% MoE 性能快速下降，可能不是因为“稀疏”本身，而是因为 $\beta$ 随着 $r_a$ 下降而变得太小，activated FFN capacity 成了瓶颈。
+
+这个 scale 问题可以直接引用附录 A 的参数化，不需要重新推一遍。公式 (14) 给出 MoE total parameters 的近似式；公式 (18) 是在进一步设定 all-MoE 条件 $L_d=0$ 后得到的 activation-rate 形式。这里的 $\approx$ 是有意义的：这些公式有意忽略了 RMSNorm scale vectors、router/gate parameters、bias、embedding parameters 等小项。
+
+如果保持 $L$、$D_m$、$L_e$、$L_d$ 大体可比，把 total parameters 从 7B 放大到 14B，那么根据公式 (14)，当 Dense-layer term 和 depth/width 相关项基本固定时，新增参数主要会进入 MoE FFN reservoir，也就是进入 $\mu$。在纯 $L_d=0$ 的情形下，$N_{\text{MoE}} \approx (4+3\mu)D_m^2L_e$，所以 $N_{\text{MoE}}$ 翻倍会让 $(4+3\mu)$ 近似翻倍；当 $\mu$ 已经较大时，$\mu$ 本身也接近 $2\times$。如果还有少量固定 Dense-layer term，这个关系就不是严格等式，但方向不变。
+
+对应到 $\beta$ 的结论直接来自公式 (18)。在同一个 $L_d=0$ 条件下：
+
+$$
+\begin{aligned}
+r_a(4+3\mu) &\approx 4+3\beta,\\
+3\beta &\approx 3r_a\mu + 4r_a - 4,\\
+\beta &\approx r_a\mu + \frac{4}{3}(r_a-1).
+\end{aligned} \tag{27}
+$$
+
+当 $\mu$ 足够大时，常数项 $\frac{4}{3}(r_a-1)$ 相比 $r_a\mu$ 的影响会变小。因此，如果 $\mu$ 近似扩大 $2\times$，那么在相同 $r_a$ 下，$\beta$ 也会近似扩大 $2\times$。这意味着同样的 activation rate 在更大模型上可以对应更宽的 activated FFN path，从而缓解小 $\beta$ 带来的瓶颈。因此，随着参数规模继续增大，optimal activation-rate region 很可能向更稀疏的方向扩展或移动。实验只到 7B 是资源限制下的 limitation，但它不改变本文最核心的结论：MoE 可以达到 Dense 一样的效果，但需要更多 consumed tokens，而且 MoE 不是越稀疏越好。
+
+---
+
+## References / 参考文献
+
+[1] Dai, D. et al. (2024). *DeepSeekMoE: Towards Ultimate Expert Specialization in Mixture-of-Experts Language Models*. arXiv:2401.06066. Local PDF: [references/deepseekmoe-2401.06066.pdf](/houyi-blogs/assets/papers/moe-equal-resources/references/deepseekmoe-2401.06066.pdf).
+
+[2] DeepSeek-AI et al. (2024). *DeepSeek-V2: A Strong, Economical, and Efficient Mixture-of-Experts Language Model*. arXiv:2405.04434. Local PDF: [references/deepseek-v2-2405.04434.pdf](/houyi-blogs/assets/papers/moe-equal-resources/references/deepseek-v2-2405.04434.pdf).
+
+[3] Kimi Team et al. (2025). *Kimi K2: Open Agentic Intelligence*. arXiv:2507.20534. Local PDF: [references/kimi-k2-2507.20534.pdf](/houyi-blogs/assets/papers/moe-equal-resources/references/kimi-k2-2507.20534.pdf).
+
+[4] Touvron, H. et al. (2023). *LLaMA: Open and Efficient Foundation Language Models*. arXiv:2302.13971.

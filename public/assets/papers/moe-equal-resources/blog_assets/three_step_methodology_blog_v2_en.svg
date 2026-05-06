@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="520" viewBox="0 0 1600 520" role="img" aria-labelledby="title desc">
+  <title id="title">Three-step methodology for equal-resource MoE evaluation</title>
+  <desc id="desc">A compact blog diagram showing the sequence from MoE architecture optimization to activation-rate sweep and data-reuse validation.</desc>
+  <defs>
+    <style>
+      .bg { fill: #ffffff; }
+      .ink { fill: #13233d; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .muted { fill: #5b6a80; font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .title { font-size: 46px; font-weight: 760; }
+      .subtitle { font-size: 26px; }
+      .card { fill: #fbfdff; stroke-width: 2.2; }
+      .card1 { stroke: #4d82ee; }
+      .card2 { stroke: #13a37c; }
+      .card3 { stroke: #d8951c; }
+      .step-label { font-size: 22px; font-weight: 760; letter-spacing: .08em; }
+      .card-title { font-size: 31px; font-weight: 760; }
+      .body { font-size: 24px; }
+      .outcome { font-size: 22px; font-weight: 720; }
+      .line { stroke: #90a2ba; stroke-width: 3.4; fill: none; }
+      .dot1 { fill: #3f7ee8; }
+      .dot2 { fill: #15906e; }
+      .dot3 { fill: #d58a13; }
+      .out1 { fill: #edf4ff; }
+      .out2 { fill: #e8f8f2; }
+      .out3 { fill: #fff4da; }
+      .note { fill: #f6f8fb; stroke: #d7e1ef; stroke-width: 1.8; }
+    </style>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto">
+      <path d="M 0 1 L 12 7 L 0 13 z" fill="#90a2ba"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1600" height="520"/>
+  <text class="ink title" x="78" y="74">Three-Step Methodology</text>
+  <text class="muted subtitle" x="78" y="112">First give MoE a strong baseline, then isolate activation rate, then test whether token reuse preserves the gain.</text>
+
+  <line class="line" x1="528" y1="288" x2="560" y2="288" marker-end="url(#arrow)"/>
+  <line class="line" x1="1033" y1="288" x2="1065" y2="288" marker-end="url(#arrow)"/>
+
+  <g transform="translate(78,150)">
+    <rect class="card card1" width="430" height="275" rx="18"/>
+    <circle class="dot1" cx="38" cy="40" r="15"/>
+    <text class="ink step-label" x="64" y="48">STEP 1</text>
+    <text class="ink card-title" x="34" y="93">Optimize MoE Backbone</text>
+    <text class="muted body" x="34" y="139">Search layout + shared experts</text>
+    <text class="muted body" x="34" y="174">Tune routing and expert allocation</text>
+    <text class="muted body" x="34" y="209">Choose shape ratios</text>
+    <rect class="out1" x="24" y="223" width="280" height="44" rx="22"/>
+    <text class="ink outcome" x="46" y="252">Output: strong MoE baseline</text>
+  </g>
+
+  <g transform="translate(583,150)">
+    <rect class="card card2" width="430" height="275" rx="18"/>
+    <circle class="dot2" cx="38" cy="40" r="15"/>
+    <text class="ink step-label" x="64" y="48">STEP 2</text>
+    <text class="ink card-title" x="34" y="93">Sweep Activation Rate</text>
+    <text class="muted body" x="34" y="139">Fix total parameters N</text>
+    <text class="muted body" x="34" y="174">Fix training compute C</text>
+    <text class="muted body" x="34" y="209">Vary r<tspan baseline-shift="sub" font-size="70%">a</tspan> on the same backbone</text>
+    <rect class="out2" x="24" y="223" width="238" height="44" rx="22"/>
+    <text class="ink outcome" x="46" y="252">Output: r<tspan baseline-shift="sub" font-size="70%">a</tspan> near 20%</text>
+  </g>
+
+  <g transform="translate(1088,150)">
+    <rect class="card card3" width="430" height="275" rx="18"/>
+    <circle class="dot3" cx="38" cy="40" r="15"/>
+    <text class="ink step-label" x="64" y="48">STEP 3</text>
+    <text class="ink card-title" x="34" y="93">Validate Data Reuse</text>
+    <text class="muted body" x="34" y="139">MoE consumes about 1 / r<tspan baseline-shift="sub" font-size="70%">a</tspan> tokens</text>
+    <text class="muted body" x="34" y="174">Cap unique-token budget</text>
+    <text class="muted body" x="34" y="209">Test multi-epoch reuse</text>
+    <rect class="out3" x="24" y="223" width="254" height="44" rx="22"/>
+    <text class="ink outcome" x="46" y="252">Output: strict N, C, D</text>
+  </g>
+
+  <rect class="note" x="78" y="452" width="1440" height="48" rx="16"/>
+  <text class="muted body" x="112" y="484">Why this order matters: compare Dense with an optimized MoE first, then measure sparsity, then handle finite data.</text>
+</svg>

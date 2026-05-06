@@ -1,7 +1,14 @@
 ---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
 const base = import.meta.env.BASE_URL.endsWith("/")
   ? import.meta.env.BASE_URL
   : `${import.meta.env.BASE_URL}/`;
-
-return Astro.redirect(`${base}en/`);
+const target = `${base}en/`;
 ---
+
+<BaseLayout title="Houyi AI Research Flow" description="Mission-driven AGI research writing." lang="en">
+  <main class="redirect-page">
+    <p>Redirecting to <a href={target}>Houyi AI Research Flow</a>.</p>
+  </main>
+</BaseLayout>

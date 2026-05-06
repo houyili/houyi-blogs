@@ -1,7 +1,8 @@
 ---
-const { lang = "en" } = Astro.props;
+type Lang = "en" | "zh";
+const { lang = "en" } = Astro.props as { lang?: Lang };
 
-const copy = {
+const allCopy = {
   en: {
     eyebrow: "About",
     title: "A mission-driven AGI research flow.",
@@ -20,7 +21,17 @@ const copy = {
     homepage: "个人主页",
     back: "返回 AGI Flow"
   }
-}[lang];
+} satisfies Record<Lang, {
+  eyebrow: string;
+  title: string;
+  lead: string;
+  body: string;
+  note: string;
+  homepage: string;
+  back: string;
+}>;
+
+const copy = allCopy[lang];
 
 const base = import.meta.env.BASE_URL.endsWith("/")
   ? import.meta.env.BASE_URL

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="520" viewBox="0 0 1600 520" role="img" aria-labelledby="title desc">
+  <title id="title">三步方法论</title>
+  <desc id="desc">为博客重绘的方法论图：先优化 MoE backbone，再搜索 activation rate，最后验证 data reuse。</desc>
+  <defs>
+    <style>
+      .bg { fill: #ffffff; }
+      .ink { fill: #13233d; font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .muted { fill: #5b6a80; font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .title { font-size: 46px; font-weight: 760; }
+      .subtitle { font-size: 26px; }
+      .card { fill: #fbfdff; stroke-width: 2.2; }
+      .card1 { stroke: #4d82ee; }
+      .card2 { stroke: #13a37c; }
+      .card3 { stroke: #d8951c; }
+      .step-label { font-size: 22px; font-weight: 760; letter-spacing: .08em; }
+      .card-title { font-size: 31px; font-weight: 760; }
+      .body { font-size: 24px; }
+      .outcome { font-size: 22px; font-weight: 720; }
+      .line { stroke: #90a2ba; stroke-width: 3.4; fill: none; }
+      .dot1 { fill: #3f7ee8; }
+      .dot2 { fill: #15906e; }
+      .dot3 { fill: #d58a13; }
+      .out1 { fill: #edf4ff; }
+      .out2 { fill: #e8f8f2; }
+      .out3 { fill: #fff4da; }
+      .note { fill: #f6f8fb; stroke: #d7e1ef; stroke-width: 1.8; }
+    </style>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto">
+      <path d="M 0 1 L 12 7 L 0 13 z" fill="#90a2ba"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1600" height="520"/>
+  <text class="ink title" x="78" y="74">三步方法论</text>
+  <text class="muted subtitle" x="78" y="112">先给 MoE 一个强 baseline，再隔离 activation rate，最后验证 data reuse 是否保住优势。</text>
+
+  <line class="line" x1="528" y1="288" x2="560" y2="288" marker-end="url(#arrow)"/>
+  <line class="line" x1="1033" y1="288" x2="1065" y2="288" marker-end="url(#arrow)"/>
+
+  <g transform="translate(78,150)">
+    <rect class="card card1" width="430" height="275" rx="18"/>
+    <circle class="dot1" cx="38" cy="40" r="15"/>
+    <text class="ink step-label" x="64" y="48">STEP 1</text>
+    <text class="ink card-title" x="34" y="93">优化 MoE Backbone</text>
+    <text class="muted body" x="34" y="139">搜索 layer layout + shared experts</text>
+    <text class="muted body" x="34" y="174">调整 routing 与 expert allocation</text>
+    <text class="muted body" x="34" y="209">确定 shape ratios</text>
+    <rect class="out1" x="24" y="223" width="250" height="44" rx="22"/>
+    <text class="ink outcome" x="46" y="252">输出：强 MoE baseline</text>
+  </g>
+
+  <g transform="translate(583,150)">
+    <rect class="card card2" width="430" height="275" rx="18"/>
+    <circle class="dot2" cx="38" cy="40" r="15"/>
+    <text class="ink step-label" x="64" y="48">STEP 2</text>
+    <text class="ink card-title" x="34" y="93">搜索 Activation Rate</text>
+    <text class="muted body" x="34" y="139">固定 total parameters N</text>
+    <text class="muted body" x="34" y="174">固定 training compute C</text>
+    <text class="muted body" x="34" y="209">在同一 backbone 上 sweep r<tspan baseline-shift="sub" font-size="70%">a</tspan></text>
+    <rect class="out2" x="24" y="223" width="248" height="44" rx="22"/>
+    <text class="ink outcome" x="46" y="252">输出：r<tspan baseline-shift="sub" font-size="70%">a</tspan> 约 20%</text>
+  </g>
+
+  <g transform="translate(1088,150)">
+    <rect class="card card3" width="430" height="275" rx="18"/>
+    <circle class="dot3" cx="38" cy="40" r="15"/>
+    <text class="ink step-label" x="64" y="48">STEP 3</text>
+    <text class="ink card-title" x="34" y="93">验证 Data Reuse</text>
+    <text class="muted body" x="34" y="139">MoE 需要约 1 / r<tspan baseline-shift="sub" font-size="70%">a</tspan> 倍 tokens</text>
+    <text class="muted body" x="34" y="174">限制 unique-token budget</text>
+    <text class="muted body" x="34" y="209">测试 multi-epoch reuse</text>
+    <rect class="out3" x="24" y="223" width="266" height="44" rx="22"/>
+    <text class="ink outcome" x="46" y="252">输出：严格 N, C, D</text>
+  </g>
+
+  <rect class="note" x="78" y="452" width="1440" height="48" rx="16"/>
+  <text class="muted body" x="112" y="484">顺序的意义：先让 MoE 以强配置参赛，再测 sparsity，最后处理 finite data。</text>
+</svg>

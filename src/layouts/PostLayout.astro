@@ -1,0 +1,48 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+
+const { post } = Astro.props;
+const lang = post.data.lang;
+const base = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+const translationHref = post.data.translation
+  ? `${base}${post.data.translation}/`
+  : lang === "en"
+    ? `${base}zh/`
+    : `${base}en/`;
+const homeHref = `${base}${lang}/`;
+const published = new Intl.DateTimeFormat(lang === "zh" ? "zh-CN" : "en", {
+  year: "numeric",
+  month: "short",
+  day: "numeric"
+}).format(post.data.published);
+const switchLabel = lang === "en" ? "中文" : "EN";
+const backLabel = lang === "en" ? "Back to AGI Flow" : "返回 AGI Flow";
+const metaParts = [
+  post.data.venue_type && post.data.venue ? `${post.data.venue} ${post.data.venue_type}` : post.data.venue,
+  post.data.category,
+  post.data.read_time,
+  published
+].filter(Boolean);
+---
+
+<BaseLayout title={`${post.data.title} | Houyi AI Research Flow`} description={post.data.description} lang={lang}>
+  <article class="post-page">
+    <header class="post-header">
+      <div class="post-kicker">
+        {metaParts.map((part) => <span>{part}</span>)}
+      </div>
+      <h1>{post.data.title}</h1>
+      <p>{post.data.description}</p>
+      <div class="post-actions">
+        <a class="about-link" href={translationHref}>{switchLabel}</a>
+        <a class="about-link secondary" href={homeHref}>{backLabel}</a>
+      </div>
+    </header>
+
+    <div class="post-content" data-pagefind-body>
+      <slot />
+    </div>
+  </article>
+</BaseLayout>

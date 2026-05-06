@@ -1,18 +1,20 @@
 ---
 import "../styles/global.css";
+import "katex/dist/katex.min.css";
 
+type Lang = "en" | "zh";
 const {
   title = "Houyi AI Research Flow",
   description = "Mission-driven AGI research notes, paper explainers, and open-source project launches.",
   lang = "en",
   current = "flow"
-} = Astro.props;
+} = Astro.props as { title?: string; description?: string; lang?: Lang; current?: string };
 
 const base = import.meta.env.BASE_URL.endsWith("/")
   ? import.meta.env.BASE_URL
   : `${import.meta.env.BASE_URL}/`;
 
-const nav = {
+const allNav = {
   en: {
     flow: "AGI Flow",
     papers: "My Papers",
@@ -31,7 +33,17 @@ const nav = {
     switchLabel: "EN",
     switchHref: `${base}en/`
   }
-}[lang];
+} satisfies Record<Lang, {
+  flow: string;
+  papers: string;
+  projects: string;
+  notes: string;
+  about: string;
+  switchLabel: string;
+  switchHref: string;
+}>;
+
+const nav = allNav[lang];
 
 const currentBase = `${base}${lang}/`;
 ---

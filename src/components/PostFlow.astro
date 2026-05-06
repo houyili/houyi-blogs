@@ -1,7 +1,20 @@
 ---
 import { getCollection } from "astro:content";
 
-const { lang = "en" } = Astro.props;
+type Lang = "en" | "zh";
+type FlowCopy = {
+  heading: string;
+  subheading: string;
+  search: string;
+  searchPlaceholder: string;
+  pinned: string;
+  topics: string;
+  allResearch: string;
+  loadMore: string;
+  pinnedItems: [string, string][];
+};
+
+const { lang = "en" } = Astro.props as { lang?: Lang };
 const allPosts = await getCollection("post", ({ data }) => data.lang === lang && !data.draft);
 const posts = allPosts.sort((a, b) => b.data.published.valueOf() - a.data.published.valueOf());
 const topics = [...new Set(posts.flatMap((post) => post.data.tags))].sort((a, b) => a.localeCompare(b));
@@ -9,7 +22,7 @@ const base = import.meta.env.BASE_URL.endsWith("/")
   ? import.meta.env.BASE_URL.slice(0, -1)
   : import.meta.env.BASE_URL;
 
-const copy = {
+const allCopy = {
   en: {
     heading: "AGI research notes, paper explainers, and open-source launches.",
     subheading: "A mission-driven research flow for understanding AGI: my papers, my projects, and technical readings that sharpen the path.",
@@ -40,7 +53,9 @@ const copy = {
       ["Predictable Scale 阅读地图", "Scaling laws · Farseer"]
     ]
   }
-}[lang];
+} satisfies Record<Lang, FlowCopy>;
+
+const copy = allCopy[lang];
 ---
 
 <section class="hero" aria-labelledby="site-title">
@@ -54,25 +69,27 @@ const copy = {
   <section class="post-stream" aria-label="Research flow">
     <div class="post-list">
       {posts.map((post) => (
-        <article class="post-card">
-          <div class="post-copy">
-            <div class="meta">
-              {post.data.pinned && <span class="pill primary">{copy.pinned}</span>}
-              {post.data.category && <span class="pill">{post.data.category}</span>}
-              {post.data.read_time && <span class="pill">{post.data.read_time}</span>}
+        <a class="post-card-link" href={`${base}/${lang}/${post.data.post_slug}/`}>
+          <article class="post-card">
+            <div class="post-copy">
+              <div class="meta">
+                {post.data.pinned && <span class="pill primary">{copy.pinned}</span>}
+                {post.data.category && <span class="pill">{post.data.category}</span>}
+                {post.data.read_time && <span class="pill">{post.data.read_time}</span>}
+              </div>
+              <h2>{post.data.title}</h2>
+              <p>{post.data.description}</p>
+              <div class="tag-row">
+                {post.data.tags.map((tag) => <span class="tag">{tag}</span>)}
+              </div>
             </div>
-            <h2>{post.data.title}</h2>
-            <p>{post.data.description}</p>
-            <div class="tag-row">
-              {post.data.tags.map((tag) => <span class="tag">{tag}</span>)}
-            </div>
-          </div>
-          {post.data.image && (
-            <figure class="post-figure">
-              <img src={`${base}${post.data.image}`} alt={`${post.data.title} figure`} loading="lazy" />
-            </figure>
-          )}
-        </article>
+            {post.data.image && (
+              <figure class="post-figure">
+                <img src={`${base}${post.data.image}`} alt={`${post.data.title} figure`} loading="lazy" />
+              </figure>
+            )}
+          </article>
+        </a>
       ))}
       <div class="load">{copy.loadMore}</div>
     </div>
