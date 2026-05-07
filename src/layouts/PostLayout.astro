@@ -1,7 +1,13 @@
 ---
 import BaseLayout from "./BaseLayout.astro";
 
-const { post } = Astro.props;
+type Heading = {
+  depth: number;
+  slug: string;
+  text: string;
+};
+
+const { post, headings = [] } = Astro.props as { post: any; headings?: Heading[] };
 const lang = post.data.lang;
 const base = import.meta.env.BASE_URL.endsWith("/")
   ? import.meta.env.BASE_URL
@@ -25,24 +31,46 @@ const metaParts = [
   post.data.read_time,
   published
 ].filter(Boolean);
+const tocLabel = lang === "en" ? "On this page" : "本文目录";
+const tocHeadings = headings
+  .filter((heading) => heading.depth === 2 || heading.depth === 3)
+  .map((heading) => ({
+    ...heading,
+    text: heading.text.replace(/[#*_`]/g, "").trim()
+  }));
 ---
 
 <BaseLayout title={`${post.data.title} | Houyi AI Research Flow`} description={post.data.description} lang={lang}>
-  <article class="post-page">
-    <header class="post-header">
-      <div class="post-kicker">
-        {metaParts.map((part) => <span>{part}</span>)}
-      </div>
-      <h1>{post.data.title}</h1>
-      <p>{post.data.description}</p>
-      <div class="post-actions">
-        <a class="about-link" href={translationHref}>{switchLabel}</a>
-        <a class="about-link secondary" href={homeHref}>{backLabel}</a>
-      </div>
-    </header>
+  <div class="post-shell">
+    <article class="post-page">
+      <header class="post-header">
+        <div class="post-kicker">
+          {metaParts.map((part) => <span>{part}</span>)}
+        </div>
+        <h1>{post.data.title}</h1>
+        <p>{post.data.description}</p>
+        <div class="post-actions">
+          <a class="about-link" href={translationHref}>{switchLabel}</a>
+          <a class="about-link secondary" href={homeHref}>{backLabel}</a>
+        </div>
+      </header>
 
-    <div class="post-content" data-pagefind-body>
-      <slot />
-    </div>
-  </article>
+      <div class="post-content" data-pagefind-body>
+        <slot />
+      </div>
+    </article>
+
+    {tocHeadings.length > 0 && (
+      <aside class="post-toc" aria-label={tocLabel}>
+        <div class="post-toc-card">
+          <h2>{tocLabel}</h2>
+          <nav>
+            {tocHeadings.map((heading) => (
+              <a class:list={[`depth-${heading.depth}`]} href={`#${heading.slug}`}>{heading.text}</a>
+            ))}
+          </nav>
+        </div>
+      </aside>
+    )}
+  </div>
 </BaseLayout>
