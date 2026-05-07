@@ -7,6 +7,9 @@
     "dev": "astro dev",
     "build": "astro build && pagefind --site dist",
     "import:draft": "node scripts/import-draft.mjs",
+    "verify:import": "node scripts/verify-import.mjs",
+    "verify:visual": "node scripts/verify-visual.mjs",
+    "skill:install": "node scripts/install-skill.mjs",
     "preview": "astro preview",
     "check": "astro check"
   },
@@ -15,7 +18,8 @@
     "@astrojs/sitemap": "^3.2.0",
     "astro": "^5.0.0",
     "katex": "^0.16.11",
-    "pagefind": "^1.3.0"
+    "pagefind": "^1.3.0",
+    "yaml": "^2.8.4"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",

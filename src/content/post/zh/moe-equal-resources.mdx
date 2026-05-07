@@ -22,8 +22,8 @@ venue_type: "Oral"
 paper_url: ""
 source_project: "/Users/jyxc-dz-0100301/Documents/项目文档/paper/iclr2026"
 source_draft: "blog.md"
-source_hash: "55e7d1469238776134c6a3e645743b35a6b842500473709b4ef15752a1838302"
-imported_at: "2026-05-06T15:13:56.610Z"
+source_hash: "21668e68f856c5cb920b84ea11c0943a731de422cdff9a224bcb019d9764596d"
+imported_at: "2026-05-07T03:56:15.559Z"
 draft: false
 ---
 
@@ -72,7 +72,7 @@ draft: false
 - 一种做法是固定数据和训练设置，然后强调 active-compute efficiency。比如 DeepSeekMoE 16B：它和 DeepSeek 7B Dense 使用同一个 2T-token corpus 训练，论文报告只用了约 40% computation 就达到与 DeepSeek 7B Dense 可比的性能，也能与 LLaMA2 7B 可比；但与此同时，它使用了更大的 total-parameter MoE reservoir [1]。
 - 另一种做法是固定 active expert budget 或目标 per-token compute，然后增加 total experts。Kimi K2 的 sparsity scaling ablation 就是这类例子，并且声称越稀疏越好 [3]。
 
-这两种做法都有价值，但它们都没有把 total parameters 锁住。这个变量不是纸面数字，它对应 capacity、HBM footprint、checkpoint size 和最小部署单元；真实系统里，当 batch size 足够大时，几乎所有 experts 都会被激活。因此更硬的问题是：如果 Dense 和 MoE 的 total parameter count 完全相同，MoE 还能不能追平甚至超过 Dense？如果可以，就说明收益不只是 parameter补贴，而是 sparsity 在训练得当时确实能成为架构优势。
+这两种做法都有价值，但它们都没有把 total parameters 锁住。这个变量不是纸面数字，它对应 capacity、HBM footprint、checkpoint size 和最小部署单元；真实系统里，当 batch size 足够大时，几乎所有 experts 都会被激活。因此更硬的问题是：如果 Dense 和 MoE 的 total parameter count 完全相同，training compute 也相同，MoE 还能不能追平甚至超过 Dense？如果可以，就说明收益不只是 parameter 补贴，而是 sparsity 在训练得当时确实能成为架构优势。
 
 ## 3. 资源方程
 
@@ -138,14 +138,14 @@ MoE 比 Dense 多了很多可调维度。Dense model 基本由宽高比和 FFN r
 如果这些因素不先控制住，activation-rate sweep 就可能失去意义。一个坏结果也许只是在说明 MoE backbone 没调好。
 因此，architecture search 的作用是先把这个设计空间收窄，得到后续 sweep 所使用的 MoE backbone。
 
+*表 1. Step 1 architecture-search 结论表。*
+
 | Component | Backbone 中采用的结论 |
 |---|---|
 | Layer arrangement | 使用 `1dense+SE`：一个初始 Dense layer，后续为带 shared experts 的 MoE layers。 |
 | Gate normalization | 在小模型 ablations 中，normalization 会降低 balance loss。 |
 | Top-K routing | 同时避免 `K = 1` 和过大的 `K`；条件允许时使用中间范围的 top-K。 |
 | Shape ratios | 搜索结果支持的是合理区间，而不是某个唯一最优值：`zeta` 在 `60-120` 左右是合理范围，`mu` 在 `20` 左右是合理范围。 |
-
-*表 1. Step 1 architecture-search 结论表。*
 
 Step 1 的核心是公平。拿 MoE 和 Dense 比之前，论文先把 MoE backbone 调到足够强。这样后面的 activation-rate sweep 问的才是一个更干净的问题：在同样总参预算下，一组结构合理的 MoE 里，什么 activation rate 最有效？`kappa_MoE` 更稳定有利于资源方程分析，但这只是 secondary benefit。Step 1 的详细实验放在附录 C。
 
@@ -184,6 +184,8 @@ Step 1 的核心是公平。拿 MoE 和 Dense 比之前，论文先把 MoE backb
   <figcaption><em>图 4. Step3A 的 3B-scale 结果。深绿色实线是 `MoE-65B`，unique tokens 被控制在 Dense-1C budget 附近（`1.04x`，约 65B tokens）。绿色虚线是 `MoE-114B`，unique-token budget 更宽松，约为 Dense-1C 的 `1.82x`。红色虚线是严格目标 `Delta BPC = -0.004`，阴影区域标出图中标注的 optimal region。</em></figcaption>
 </figure>
 
+*表 2. 3B Step3A resource table。这里选出的 MoE rows 基本使用和 Dense-1C 相同的 unique-token budget，但通过 reuse 消耗更多 training tokens。BPC deltas 相对 Dense-1C 计算，越低越好。*
+
 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.86em", lineHeight: "1.25" }}>
       <thead>
         <tr>
@@ -206,8 +208,6 @@ Step 1 的核心是公平。拿 MoE 和 Dense 比之前，论文先把 MoE backb
       </tbody>
 </table>
 
-*表 2. 3B Step3A resource table。这里选出的 MoE rows 基本使用和 Dense-1C 相同的 unique-token budget，但通过 reuse 消耗更多 training tokens。BPC deltas 相对 Dense-1C 计算，越低越好。*
-
 关键不是“所有 reuse setting 都一样好”，而是：即使 unique tokens 几乎被压在 Dense-1C budget 附近，一个中等 activation rate 仍然可以让 MoE 在大致相同 total parameters 和 compute 下超过 Dense-1C。表里最好的点是 `MoE-65B-Exp4`，$r_a = 18.83\%$，`Delta BPC = -0.0076`。
 
 ### 7.2 Step3B：7B data reuse, the sweet spot, and the resource table
@@ -226,6 +226,8 @@ Step 1 的核心是公平。拿 MoE 和 Dense 比之前，论文先把 MoE backb
 </div>
 
 图 5a 和图 5b 从两个角度看同一组 7B trade-off。图 5a 里，不做 reuse 的 MoE 可以在较宽的中等 activation-rate 区间超过 Dense-2C，但要用多得多的 unique tokens；two epochs 后，同一区间仍然超过 Dense-2C，同时 unique data 需求明显下降；到了 strict 68B cap，大多数 activation rates 会掉队，但 $r_a = 20.07\%$ 仍然能对齐 Dense-2C。图 5b 则把 reuse 这个轴展开：适度 reuse 可以保留甚至提升 MoE 表现，过度 reuse 会明显退化，尤其是在 activation rate 过低时。
+
+*表 3. 7B Step3B resource table，对应图 5a 和图 5b。Deltas 相对 Dense-2C 计算；BPC 越低越好。值得注意的一行是 `MoE-68B` 在 $r_a = 20.07\%$：同一 total-parameter scale，68B unique tokens，`4.65` reuse epochs，per-token FLOPs 只有 `21.5%`，BPC `0.4590`，与 Dense-2C 的 `0.4594` 可比。这意味着，选对 activation rate 后，即使 unique tokens 被严格限制，MoE 仍然可以用更多 consumed tokens 换来 activation-rate 量级的 per-token FLOPs。*
 
 | Model / strategy | $r_a$ | Unique tokens | Reuse epochs | FLOPs/token vs Dense | BPC | Delta BPC vs Dense-2C |
 |---|---:|---:|---:|---:|---:|---:|
@@ -246,8 +248,6 @@ Step 1 的核心是公平。拿 MoE 和 Dense 比之前，论文先把 MoE backb
 | MoE-68B | 15.63% | 68B | 5.74 | 17.4% | 0.4601 | +0.0007 |
 | MoE-68B | 20.07% | 68B | 4.65 | 21.5% | 0.4590 | -0.0004 |
 | MoE-68B | 26.18% | 68B | 3.67 | 27.2% | 0.4597 | +0.0003 |
-
-*表 3. 7B Step3B resource table，对应图 5a 和图 5b。Deltas 相对 Dense-2C 计算；BPC 越低越好。值得注意的一行是 `MoE-68B` 在 $r_a = 20.07\%$：同一 total-parameter scale，68B unique tokens，`4.65` reuse epochs，per-token FLOPs 只有 `21.5%`，BPC `0.4590`，与 Dense-2C 的 `0.4594` 可比。这意味着，选对 activation rate 后，即使 unique tokens 被严格限制，MoE 仍然可以用更多 consumed tokens 换来 activation-rate 量级的 per-token FLOPs。*
 
 ### 7.3 Step3C：Downstream evaluation after SFT
 
@@ -475,9 +475,9 @@ Kimi K2 是第二类比较方式的清楚例子。在 sparsity scaling law exper
 
 论文首先测试 Dense 和 MoE layers 怎么排。共同超参数是 `D_m = 1408`、`D_ffn = 3904`、`Norm = True`。实验比较 `full`、`interleave`、`1dense` 以及 shared-expert variants。
 
-![MoE layer arrangement 与 shared expert 结果](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/arch_table_layer_arrangement.png)
-
 *附录表 C1. MoE layer arrangement 和 shared experts 的实验设置与结果。*
+
+![MoE layer arrangement 与 shared expert 结果](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/arch_table_layer_arrangement.png)
 
 这张表可以分三层读。第一，初始组里，`interleave` 优于 `full`（training loss `1.6766` 或 `1.6697` vs. `1.6813`）。第二，更大的比较组里，`1dense+SE` 是最强设置，`1.8557` 优于对应的 `interleave` rows（`1.8737` 和 `1.8620`）。第三，最后一组里，shared-expert ratio 的影响很小（`1.6752`、`1.6712`、`1.6726`）。因此论文后续采用 `1dense+SE`，并设置 `D_se = K D_e`。
 
@@ -485,9 +485,9 @@ Kimi K2 是第二类比较方式的清楚例子。在 sparsity scaling law exper
 
 Gate-normalization 实验使用 `Scheme = 1dense`、`L = 17`、`D_m = 1408`、`D_ffn = 3904`、`H = 22`、`D_h = 64`。
 
-![Gate score normalization 结果](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/arch_table_gate_norm.png)
-
 *附录表 C2. Gate score normalization 的实验设置与结果。*
+
+![Gate score normalization 结果](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/arch_table_gate_norm.png)
 
 在这些小模型 ablations 中，loss 差异很小：有 shared experts 时，normalization 是 `1.6726`，no normalization 是 `1.6712`；没有 shared experts 时，对应是 `1.6752` vs. `1.6750`。更清楚的影响体现在 balance loss：有 shared-expert setting 中，normalization 将 average balance loss 从 `1.452` 降到 `1.355`；无 shared-expert setting 中，从 `1.440` 降到 `1.409`。
 
@@ -497,9 +497,9 @@ Gate-normalization 实验使用 `Scheme = 1dense`、`L = 17`、`D_m = 1408`、`D
 
 Top-K 实验固定 `Scheme = 1dense`、`L = 16`、`D_m = 1408`、`D_ffn = 3904`、`H = 11`、`D_h = 128`、`Norm = False`，并在几个 activation-rate regions 中改变 `K` 和 expert size。
 
-![Top-K routing 结果](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/arch_table_topk.png)
-
 *附录表 C3. Top-K routing 的实验设置与结果。*
+
+![Top-K routing 结果](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/arch_table_topk.png)
 
 这张表支持的是有边界的结论，而不是某个 universal `K`。在 $r_a \approx 27\%$ 时，`K = 11` 优于 `K = 1`（`2.0338` vs. `2.0470`）。在更高 activation rates 下，过大的 `K` 反而不如小一些的 `K`：$r_a \approx 44\%$ 时 `K = 2` 优于 `K = 22`（`1.9996` vs. `2.0266`），$r_a \approx 58\%$ 时 `K = 3` 优于 `K = 33`（`2.0156` vs. `2.0235`）。因此论文的实践选择是：尽可能避免 `K = 1`，也避免过大的 `K`。
 
@@ -516,6 +516,8 @@ Top-K 实验固定 `Scheme = 1dense`、`L = 16`、`D_m = 1408`、`D_ffn = 3904`�
 ## 附录 D：Notation
 
 这个表参考论文 Table 1，并补充正文博客中额外使用的两个 shorthand。
+
+*附录表 D1. 论文和本文使用的 notation。*
 
 | Symbol | Definition | Symbol | Definition |
 |---|---|---|---|
@@ -536,6 +538,8 @@ Top-K 实验固定 `Scheme = 1dense`、`L = 16`、`D_m = 1408`、`D_ffn = 3904`�
 
 论文 Appendix Table 3 给出了 pretraining mixture，并和 LLaMA-1 recipe 做了对比 [4]。这张表对理解 downstream results 很重要：本文有意使用简单的 LLaMA-1-style mixture，而不是现代工业模型常用的 domain-boosted recipe。
 
+*附录表 E1. 论文 Table 3：pretraining data recipe compared with the LLaMA-1 recipe。*
+
 | Dataset class | Our recipe | Our dataset detail | LLaMA-1 recipe | LLaMA-1 dataset detail | Diff |
 |---|---:|---|---:|---|---:|
 | WebData-en | 79.53% | CC (English) | 82.00% | 67% CC + 15% C4 (English) | -2.47% |
@@ -544,8 +548,6 @@ Top-K 实验固定 `Scheme = 1dense`、`L = 16`、`D_m = 1408`、`D_ffn = 3904`�
 | Book | 5.18% | open-source English books | 4.50% | Book3, Gutenberg | +0.68% |
 | arXiv | 3.38% | as class name | 1.06% | as class name | +2.32% |
 | StackExchange | 2.21% | as class name | 2.00% | as class name | +0.21% |
-
-*附录表 E1. 论文 Table 3：pretraining data recipe compared with the LLaMA-1 recipe。*
 
 这个数据选择也决定了 downstream scores 应该如何解读。我们的目标不是用现代 domain-boosted recipe 去最大化绝对 benchmark 分数，而是在同一套受控 pretraining mixture 下比较 Dense 和 MoE。由于这套 corpus 接近 LLaMA-1，约 80% 是 generic web data，显式 code data 只有 4.62%，高纯度 math/code/knowledge 内容在训练数据中并不密集。因此，Math/Code/knowledge 的绝对分数不应被看作这篇论文的主要目标。
 

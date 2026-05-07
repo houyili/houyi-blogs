@@ -1,0 +1,35 @@
+slug: fixture-paired-import
+published: "2026-05-07"
+updated: "2026-05-07"
+pinned: false
+paper: true
+project: fixture-paired-import
+venue: Fixture
+venue_type: Test
+paper_url: ""
+image: ""
+source_format: paired-bilingual
+sources:
+  en: blog.en.md
+  zh: blog.zh.md
+posts:
+  en:
+    title: Tiny Paired Import Fixture
+    description: A small paired bilingual fixture for importer regression.
+    category: Paper Explainer
+    read_time: 1 min read
+    tags:
+      - Fixture
+      - Import
+  zh:
+    title: 双文件导入测试
+    description: 一个用于 importer 回归测试的小型双语双文件 fixture。
+    category: 论文解读
+    read_time: 1 分钟
+    tags:
+      - Fixture
+      - Import
+asset_roots:
+  - blog_assets
+  - reform_datas
+  - references

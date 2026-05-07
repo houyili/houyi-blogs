@@ -8,7 +8,7 @@ Generic bilingual Markdown importer for paper/project drafts. It is program base
 npm run import:draft -- /path/to/paper-project/blog.md
 ```
 
-The first supported source format is one Markdown file with both language sections:
+The importer supports one Markdown file with both language sections:
 
 ```markdown
 ## I. English Draft
@@ -29,11 +29,22 @@ public/assets/papers/<slug>/
 public/assets/papers/<slug>/import-report.json
 ```
 
+It also supports paired files with a sidecar config:
+
+```yaml
+source_format: paired-bilingual
+sources:
+  en: blog.en.md
+  zh: blog.zh.md
+```
+
 Current command for the ICLR 2026 Oral post:
 
 ```bash
-npm run import:draft -- /Users/jyxc-dz-0100301/Documents/项目文档/paper/iclr2026/blog.md
+npm run import:draft -- /Users/jyxc-dz-0100301/Documents/项目文档/paper/iclr2026/blog.md --config scripts/fixtures/moe-equal-resources.import.yaml
 ```
+
+If no `--config` is passed, the importer looks for `<basename>.import.yaml` beside the source draft. If it does not exist, it creates a template and exits so the metadata can be filled once.
 
 ### Mechanical Preservation
 
@@ -50,12 +61,30 @@ The script keeps Markdown, raw HTML blocks, tables, figures, captions, appendice
 Each run writes `import-report.json` with:
 
 - Source hash, language-section hashes, and output hashes.
+- Normalized source/generated text hashes.
 - Output paths.
 - Counts for images, tables, figures, figcaptions, display math, equation tags, raw HTML blocks, and headings.
 - Referenced, copied, and missing assets.
 - Local absolute path leak checks.
 
-The importer exits nonzero if an asset is missing or a generated post leaks a local absolute path.
+The importer exits nonzero if an asset is missing, a generated post leaks a local absolute path, feature counts mismatch, or normalized text hashes diverge.
+
+### Verification
+
+```bash
+npm run verify:import -- --slug moe-equal-resources
+npm run verify:visual -- --slug moe-equal-resources
+```
+
+`verify:visual` writes screenshots and a VLM review prompt under `tmp/visual-check/<slug>/`.
+
+### Skill Install
+
+```bash
+npm run skill:install
+```
+
+This symlinks `skills/paper-blog-importer` into `${CODEX_HOME:-~/.codex}/skills/paper-blog-importer`.
 
 ### Reimport Cost
 

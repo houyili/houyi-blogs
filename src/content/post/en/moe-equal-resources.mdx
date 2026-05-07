@@ -22,8 +22,8 @@ venue_type: "Oral"
 paper_url: ""
 source_project: "/Users/jyxc-dz-0100301/Documents/项目文档/paper/iclr2026"
 source_draft: "blog.md"
-source_hash: "55e7d1469238776134c6a3e645743b35a6b842500473709b4ef15752a1838302"
-imported_at: "2026-05-06T15:13:56.610Z"
+source_hash: "21668e68f856c5cb920b84ea11c0943a731de422cdff9a224bcb019d9764596d"
+imported_at: "2026-05-07T03:56:15.559Z"
 draft: false
 ---
 
@@ -32,8 +32,6 @@ draft: false
 The central question of this work is simple:
 
 > How do we train a Mixture-of-Experts model that matches a Dense model with the same total parameter count?
-
-This is not the same as asking whether an MoE model can match a Dense model while using fewer activated parameters. Many previous comparisons quietly give MoE a much larger total parameter budget. That is useful in practice, but it leaves an important question unresolved: is MoE strong because sparsity is a better architecture, or because the model received a large parameter subsidy?
 
 Our answer is:
 
@@ -73,7 +71,7 @@ Two common comparison styles appear in the literature:
 - Fix the data and training setup, then emphasize active-compute efficiency. DeepSeekMoE 16B is a typical example: trained on the same 2T-token corpus, it reports comparable performance to DeepSeek 7B Dense with only about 40% of the computation, and comparable performance to LLaMA2 7B, while using a larger total-parameter MoE reservoir [1].
 - Fix the active expert budget or target per-token compute, then increase the number of total experts. Kimi K2's sparsity scaling ablation is a clear example of this perspective [3].
 
-Both perspectives are useful, but neither controls total parameters, which determine capacity, HBM footprint, checkpoint size, and the minimum deployment unit; in practice, when the batch size is large, almost all experts are activated somewhere in the batch. The sharper question is therefore: if Dense and MoE have the same total parameter count, can MoE still match or surpass Dense? A yes would mean the gain is not merely a parameter subsidy, but evidence that sparsity can become a real architectural advantage when trained correctly.
+Both perspectives are useful, but neither controls total parameters, which determine capacity, HBM footprint, checkpoint size, and the minimum deployment unit; in practice, when the batch size is large, almost all experts are activated somewhere in the batch. The sharper question is therefore: if Dense and MoE have the same total parameter count and the same training compute, can MoE still match or surpass Dense? A yes would mean the gain is not merely a parameter subsidy, but evidence that sparsity can become a real architectural advantage when trained correctly.
 
 ## 3. The resource equation
 
@@ -139,14 +137,14 @@ MoE has more structural degrees of freedom than Dense. A Dense model is largely 
 If these are not controlled, an activation-rate sweep can become meaningless. A bad result might simply mean the MoE backbone was bad.
 The architecture search narrows this design space into the backbone choices used for the later sweeps.
 
+*Table 1. Step 1 architecture-search conclusion table.*
+
 | Component | Conclusion used for the backbone |
 |---|---|
 | Layer arrangement | Use `1dense+SE`: one initial Dense layer, followed by MoE layers with shared experts. |
 | Gate normalization | Normalization reduces balance loss in the small-model ablations. |
 | Top-K routing | Avoid both `K = 1` and overly large `K`; use intermediate top-K choices whenever possible. |
 | Shape ratios | The search supports a reasonable range rather than a single universal value: `zeta` around `60-120` is reasonable, and `mu` around `20` is reasonable. |
-
-*Table 1. Step 1 architecture-search conclusion table.*
 
 Step 1 is mainly about fairness. Before comparing MoE with Dense, the paper first gives MoE a strong backbone. After that, the activation-rate sweep asks a cleaner question: among well-constructed MoE models with the same total-parameter budget, which activation rate actually works best? Stabilizing `kappa_MoE` also helps the resource-equation analysis, but that is a secondary benefit. The detailed Step 1 experiments are in Appendix C.
 
@@ -185,6 +183,8 @@ Figure 4 and Table 2 should be read together. The figure shows the full 3B activ
   <figcaption><em>Figure 4. Step3A at 3B scale. The solid dark-green line is `MoE-65B`, where unique tokens are kept near the Dense-1C budget (`1.04x`, about 65B tokens). The dashed green line is `MoE-114B`, a looser setting with about `1.82x` Dense-1C unique tokens. The red dashed line is the strict target `Delta BPC = -0.004`, and the shaded band marks the annotated optimal region.</em></figcaption>
 </figure>
 
+*Table 2. 3B Step3A resource table. The selected MoE rows use nearly the same unique-token budget as Dense-1C, but consume more training tokens through reuse. BPC deltas are relative to Dense-1C, and lower is better.*
+
 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.86em", lineHeight: "1.25" }}>
       <thead>
         <tr>
@@ -207,8 +207,6 @@ Figure 4 and Table 2 should be read together. The figure shows the full 3B activ
       </tbody>
 </table>
 
-*Table 2. 3B Step3A resource table. The selected MoE rows use nearly the same unique-token budget as Dense-1C, but consume more training tokens through reuse. BPC deltas are relative to Dense-1C, and lower is better.*
-
 The important reading is not that every reuse setting is equally good. It is that, even when unique tokens are almost fixed to the Dense-1C budget, a moderate activation rate can make MoE outperform Dense-1C under roughly equal total parameters and compute. The best row here is `MoE-65B-Exp4` at $r_a = 18.83\%$, with `Delta BPC = -0.0076`.
 
 ### 7.2 Step3B: 7B data reuse, the sweet spot, and the resource table
@@ -227,6 +225,8 @@ At 7B, the paper switches to a harder baseline. Since the MoE models already sur
 </div>
 
 Together, Figures 5a and 5b show the same 7B trade-off from two angles. In Figure 5a, MoE without reuse can beat Dense-2C across a broad midrange but needs many more unique tokens; with two epochs, the same midrange still beats Dense-2C while using much less unique data; under the strict 68B cap, most activation rates fall short, but $r_a = 20.07\%$ still matches Dense-2C. Figure 5b then makes the reuse axis explicit: moderate reuse can preserve or improve MoE performance, while excessive reuse degrades sharply, especially when the activation rate is too sparse.
+
+*Table 3. 7B Step3B resource table corresponding to Figures 5a and 5b. Deltas are relative to Dense-2C; lower BPC is better. The row to notice is `MoE-68B` at $r_a = 20.07\%$: same total-parameter scale, 68B unique tokens, `4.65` reuse epochs, only `21.5%` per-token FLOPs, and BPC `0.4590`, comparable to Dense-2C at `0.4594`. This means that, with the right activation rate, MoE can still trade more consumed tokens for activation-rate-level per-token FLOPs even when unique tokens are tightly capped.*
 
 | Model / strategy | $r_a$ | Unique tokens | Reuse epochs | FLOPs/token vs Dense | BPC | Delta BPC vs Dense-2C |
 |---|---:|---:|---:|---:|---:|---:|
@@ -247,8 +247,6 @@ Together, Figures 5a and 5b show the same 7B trade-off from two angles. In Figur
 | MoE-68B | 15.63% | 68B | 5.74 | 17.4% | 0.4601 | +0.0007 |
 | MoE-68B | 20.07% | 68B | 4.65 | 21.5% | 0.4590 | -0.0004 |
 | MoE-68B | 26.18% | 68B | 3.67 | 27.2% | 0.4597 | +0.0003 |
-
-*Table 3. 7B Step3B resource table corresponding to Figures 5a and 5b. Deltas are relative to Dense-2C; lower BPC is better. The row to notice is `MoE-68B` at $r_a = 20.07\%$: same total-parameter scale, 68B unique tokens, `4.65` reuse epochs, only `21.5%` per-token FLOPs, and BPC `0.4590`, comparable to Dense-2C at `0.4594`. This means that, with the right activation rate, MoE can still trade more consumed tokens for activation-rate-level per-token FLOPs even when unique tokens are tightly capped.*
 
 ### 7.3 Step3C: Downstream evaluation after SFT
 
@@ -476,9 +474,9 @@ This appendix expands the Step 1 architecture search and explains how the paper 
 
 The paper first tests how to arrange Dense and MoE layers. The shared hyperparameters are `D_m = 1408`, `D_ffn = 3904`, and `Norm = True`. The experiments compare `full`, `interleave`, `1dense`, and shared-expert variants.
 
-![MoE layer arrangement and shared-expert results](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/arch_table_layer_arrangement.png)
-
 *Appendix Table C1. Experimental settings and results for MoE layer arrangement and shared experts.*
+
+![MoE layer arrangement and shared-expert results](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/arch_table_layer_arrangement.png)
 
 There are three useful readings of the table. First, in the initial group, `interleave` improves over `full` (`1.6766` or `1.6697` vs. `1.6813` training loss). Second, in the larger comparison group, `1dense+SE` is the strongest setting, with `1.8557` beating the corresponding `interleave` rows (`1.8737` and `1.8620`). Third, changing the shared-expert ratio has only a small effect in the final group (`1.6752`, `1.6712`, and `1.6726`). This is why the paper continues with `1dense+SE` and sets `D_se = K D_e`.
 
@@ -486,9 +484,9 @@ There are three useful readings of the table. First, in the initial group, `inte
 
 The gate-normalization experiment uses `Scheme = 1dense`, `L = 17`, `D_m = 1408`, `D_ffn = 3904`, `H = 22`, and `D_h = 64`.
 
-![Gate score normalization results](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/arch_table_gate_norm.png)
-
 *Appendix Table C2. Experimental settings and results for gate score normalization.*
+
+![Gate score normalization results](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/arch_table_gate_norm.png)
 
 The loss difference is small in these small-model ablations: with shared experts, normalization gives `1.6726` vs. `1.6712` without normalization; without shared experts, it gives `1.6752` vs. `1.6750`. The clearer effect is on balance loss: normalization reduces average balance loss from `1.452` to `1.355` in the shared-expert setting, and from `1.440` to `1.409` in the no-shared-expert setting.
 
@@ -498,9 +496,9 @@ The right interpretation is a limitation of the paper, not a general recommendat
 
 The top-K experiment fixes `Scheme = 1dense`, `L = 16`, `D_m = 1408`, `D_ffn = 3904`, `H = 11`, `D_h = 128`, and `Norm = False`. It varies `K` and expert size across several activation-rate regions.
 
-![Top-K routing results](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/arch_table_topk.png)
-
 *Appendix Table C3. Experimental settings and results for top-K routing.*
+
+![Top-K routing results](/houyi-blogs/assets/papers/moe-equal-resources/blog_assets/arch_table_topk.png)
 
 The table supports a bounded conclusion rather than a single universal `K`. At $r_a \approx 27\%$, `K = 11` performs better than `K = 1` (`2.0338` vs. `2.0470`). At higher activation rates, much larger `K` values are worse than smaller ones: `K = 2` beats `K = 22` at $r_a \approx 44\%$ (`1.9996` vs. `2.0266`), and `K = 3` beats `K = 33` at $r_a \approx 58\%$ (`2.0156` vs. `2.0235`). The paper's practical decision is therefore to avoid both `K = 1` and overly large `K` whenever possible.
 
@@ -517,6 +515,8 @@ The paper explicitly notes that performance fluctuates substantially for a given
 ## Appendix D. Notation
 
 This table follows Table 1 of the paper, with two extra shorthand terms used in this blog.
+
+*Appendix Table D1. Notation used in the paper and this blog.*
 
 | Symbol | Definition | Symbol | Definition |
 |---|---|---|---|
@@ -537,6 +537,8 @@ This table follows Table 1 of the paper, with two extra shorthand terms used in 
 
 The paper's Appendix Table 3 reports the pretraining mixture for reproducibility and compares it with the LLaMA-1 recipe [4]. This table is important for interpreting downstream results: the study intentionally uses a simple, LLaMA-1-style mixture rather than a modern domain-boosted recipe.
 
+*Appendix Table E1. Paper Table 3: pretraining data recipe compared with the LLaMA-1 recipe.*
+
 | Dataset class | Our recipe | Our dataset detail | LLaMA-1 recipe | LLaMA-1 dataset detail | Diff |
 |---|---:|---|---:|---|---:|
 | WebData-en | 79.53% | CC (English) | 82.00% | 67% CC + 15% C4 (English) | -2.47% |
@@ -545,8 +547,6 @@ The paper's Appendix Table 3 reports the pretraining mixture for reproducibility
 | Book | 5.18% | open-source English books | 4.50% | Book3, Gutenberg | +0.68% |
 | arXiv | 3.38% | as class name | 1.06% | as class name | +2.32% |
 | StackExchange | 2.21% | as class name | 2.00% | as class name | +0.21% |
-
-*Appendix Table E1. Paper Table 3: pretraining data recipe compared with the LLaMA-1 recipe.*
 
 This data choice also explains how to read the downstream scores. Our goal is not to maximize absolute benchmark numbers with a modern domain-boosted recipe, but to compare Dense and MoE under the same controlled pretraining mixture. Because the corpus is close to LLaMA-1, with roughly 80% generic web data and only 4.62% explicit code data, high-purity math/code/knowledge content is not dense in the training data. Therefore, absolute Math/Code/knowledge numbers should not be read as the paper's main target.
 

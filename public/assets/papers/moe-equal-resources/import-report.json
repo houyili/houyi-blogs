@@ -1,35 +1,41 @@
 {
   "slug": "moe-equal-resources",
-  "source": "/Users/jyxc-dz-0100301/Documents/项目文档/paper/iclr2026/blog.md",
-  "imported_at": "2026-05-06T15:13:56.610Z",
+  "config": "scripts/fixtures/moe-equal-resources.import.yaml",
+  "source": {
+    "single": "/Users/jyxc-dz-0100301/Documents/项目文档/paper/iclr2026/blog.md"
+  },
+  "imported_at": "2026-05-07T03:56:15.559Z",
   "hashes": {
-    "source": "55e7d1469238776134c6a3e645743b35a6b842500473709b4ef15752a1838302",
-    "english_segment": "fdbbb0fd238e5d1b875f7a3d4431cca5df6f82ea486eb9411669955d9a84bdd6",
-    "chinese_segment": "ed04f9a22b54f9bdf210323828a64724944cffeed8e5f69a54132b1a274c6f78",
-    "english_output": "7c80394a213e5ff1066a113341f30ecfcfb4e2d38a1177e985402a4589d3ea08",
-    "chinese_output": "7e8e7017633d444f4dcaada868e0b7eb74281e896f0c43277a7b264c4db6ee7b"
+    "source": "21668e68f856c5cb920b84ea11c0943a731de422cdff9a224bcb019d9764596d",
+    "english_segment": "1b488c071a60aa339c4e6af2e24d6be40f27c4b6e1bdd346f5c619fc3a02b225",
+    "chinese_segment": "bc9fa10115f8b473e8c5fb2b1756fd9dc47683ebdcfd52ad447e949c14f35cbb",
+    "normalized_source_text": "09c97ef3ef4fb50eb76692350d2b4f6bee0982a917c8542dc1f175cd2b3fcb5a",
+    "normalized_generated_text": "09c97ef3ef4fb50eb76692350d2b4f6bee0982a917c8542dc1f175cd2b3fcb5a",
+    "english_output": "608989cf39dd3f1f7bc115305e2a1a9fa5748a0144d35d1dc8300f38b4c22b62",
+    "chinese_output": "f60ceb5f0b5578f1155317274b69ccbf77ca7f0539c51a67a795b07e051af5dd"
   },
   "outputs": {
     "en": "src/content/post/en/moe-equal-resources.mdx",
-    "zh": "src/content/post/zh/moe-equal-resources.mdx"
+    "zh": "src/content/post/zh/moe-equal-resources.mdx",
+    "assets": "public/assets/papers/moe-equal-resources"
   },
   "counts": {
     "source": {
       "images": 32,
       "tables": 96,
       "figures": 22,
-      "figcaptions": 37,
+      "figcaptions": 69,
       "displayMath": 54,
       "inlineMathApprox": 246,
       "equationTags": 54,
       "rawHtmlBlocks": 14,
-      "headings": 64
+      "headings": 62
     },
     "english_segment": {
       "images": 16,
       "tables": 48,
       "figures": 11,
-      "figcaptions": 21,
+      "figcaptions": 22,
       "displayMath": 27,
       "inlineMathApprox": 119,
       "equationTags": 27,
@@ -40,7 +46,7 @@
       "images": 16,
       "tables": 48,
       "figures": 11,
-      "figcaptions": 16,
+      "figcaptions": 47,
       "displayMath": 27,
       "inlineMathApprox": 127,
       "equationTags": 27,
@@ -51,7 +57,7 @@
       "images": 32,
       "tables": 96,
       "figures": 22,
-      "figcaptions": 37,
+      "figcaptions": 69,
       "displayMath": 54,
       "inlineMathApprox": 246,
       "equationTags": 54,
@@ -189,6 +195,8 @@
   "validation": {
     "missingAssets": [],
     "localPathLeaks": [],
-    "textDiffPolicy": "Expected mechanical differences: frontmatter, language split, heading-level promotion, references rendered in both language outputs, asset URL rewrite, and JSX-safe normalization for raw HTML attributes."
+    "countMismatches": [],
+    "textHashesMatch": true,
+    "textDiffPolicy": "Expected mechanical differences: frontmatter, language split, heading-level promotion, references rendered in both language outputs, asset URL rewrite, display-math normalization, and JSX-safe normalization for raw HTML attributes."
   }
 }
