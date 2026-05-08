@@ -38,6 +38,12 @@ ASTRO_TELEMETRY_DISABLED=1 npm run build
 npm run verify:visual -- --slug <slug>
 ```
 
+After cloning this repo on a new Mac, or after changing the skill/installer, run:
+
+```bash
+npm run skill:self-test
+```
+
 7. Inspect build output for regressions:
    - expected routes exist for `/en/<slug>/` and `/zh/<slug>/`
    - removed old slugs are absent from `dist/`

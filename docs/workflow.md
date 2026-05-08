@@ -61,7 +61,7 @@ The import tool should ask for missing metadata interactively, then copy the pos
 For the current ICLR 2026 Oral post:
 
 ```bash
-npm run import:draft -- /Users/jyxc-dz-0100301/Documents/项目文档/paper/iclr2026/blog_body.md --config scripts/fixtures/moe-equal-resources-p1.import.yaml
+npm run import:draft -- /path/to/paper-repo/blog_body.md --config scripts/fixtures/moe-equal-resources-p1.import.yaml
 ```
 
 The import step is deterministic and program based. Codex may help diagnose failures or suggest metadata, but it should not rewrite the article body during import. For future paper repos, prefer a sidecar `blog.import.yaml` beside the source draft so metadata is filled once and reused across imports.
@@ -127,7 +127,11 @@ This repo includes a reusable Codex skill for the workflow:
 npm run skill:install
 ```
 
-The installer symlinks `skills/paper-blog-importer` into `${CODEX_HOME:-~/.codex}/skills`. On another Mac, clone this repo, run `npm install`, then run the install command above.
+The installer symlinks `skills/paper-blog-importer` into `${CODEX_HOME:-~/.codex}/skills`. On another Mac, clone this repo, run `npm install`, then run the install command above. Existing symlinks from older clones are automatically relinked; real files/directories are left untouched. Verify with:
+
+```bash
+npm run skill:self-test
+```
 
 ## Comments
 

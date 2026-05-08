@@ -38,10 +38,10 @@ sources:
   zh: blog.zh.md
 ```
 
-Current command for the ICLR 2026 Oral post:
+Example command for a paper body post:
 
 ```bash
-npm run import:draft -- /Users/jyxc-dz-0100301/Documents/项目文档/paper/iclr2026/blog_body.md --config scripts/fixtures/moe-equal-resources-p1.import.yaml
+npm run import:draft -- /path/to/paper-repo/blog_body.md --config scripts/fixtures/<paper-slug>-p1.import.yaml
 ```
 
 If no `--config` is passed, the importer looks for `<basename>.import.yaml` beside the source draft. If it does not exist, it creates a template and exits so the metadata can be filled once.
@@ -84,7 +84,13 @@ npm run verify:visual -- --slug moe-equal-resources-p1
 npm run skill:install
 ```
 
-This symlinks `skills/paper-blog-importer` into `${CODEX_HOME:-~/.codex}/skills/paper-blog-importer`.
+This symlinks `skills/paper-blog-importer` into `${CODEX_HOME:-~/.codex}/skills/paper-blog-importer`. Existing symlinks from older clones are automatically relinked; real files/directories are not overwritten.
+
+```bash
+npm run skill:self-test
+```
+
+This runs the repo-contained cross-machine smoke test for install, relink, required files, referenced files, and local path leaks.
 
 ### Reimport Cost
 

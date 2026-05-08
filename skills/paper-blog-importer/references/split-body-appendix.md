@@ -126,6 +126,7 @@ npm run verify:visual -- --slug <paper-slug>-p2
 
 Then inspect pair behavior:
 
+- If the skill, installer, or visual verifier changed, `npm run skill:self-test` passes before publishing.
 - `/en/<paper-slug>-p1/`, `/zh/<paper-slug>-p1/`, `/en/<paper-slug>-p2/`, `/zh/<paper-slug>-p2/` exist.
 - P1 footer links to P2; P2 footer links back to P1.
 - P1 appears before P2 on the homepage.

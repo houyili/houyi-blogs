@@ -1,4 +1,4 @@
-import { lstat, mkdir, readlink, symlink } from "node:fs/promises";
+import { lstat, mkdir, readlink, rm, symlink } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,17 +13,21 @@ await mkdir(skillsDir, { recursive: true });
 
 try {
   const info = await lstat(target);
-  if (info.isSymbolicLink()) {
-    const current = path.resolve(path.dirname(target), await readlink(target));
-    if (current === source) {
-      console.log(`Skill already installed: ${target} -> ${source}`);
-      process.exit(0);
-    }
+  if (!info.isSymbolicLink()) {
+    throw new Error(`Refusing to overwrite non-symlink skill at ${target}. Move it manually or choose a different CODEX_HOME.`);
   }
-  throw new Error(`Refusing to overwrite existing skill at ${target}. Remove it manually or choose a different CODEX_HOME.`);
+
+  const current = path.resolve(path.dirname(target), await readlink(target));
+  if (current === source) {
+    console.log(`Skill already installed: ${target} -> ${source}`);
+    process.exit(0);
+  }
+
+  await rm(target);
+  await symlink(source, target, "dir");
+  console.log(`Relinked skill: ${target} -> ${source} (was ${current})`);
 } catch (error) {
   if (error.code !== "ENOENT") throw error;
+  await symlink(source, target, "dir");
+  console.log(`Installed skill: ${target} -> ${source}`);
 }
-
-await symlink(source, target, "dir");
-console.log(`Installed skill: ${target} -> ${source}`);
