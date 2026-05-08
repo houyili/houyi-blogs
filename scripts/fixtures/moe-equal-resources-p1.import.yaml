@@ -7,7 +7,7 @@ project: moe-equal-resources
 venue: ICLR 2026
 venue_type: Oral
 paper_url: ""
-image: /assets/papers/moe-equal-resources-p1/reform_datas/figs_empirical/3B_7B_train_token_ratio_combined.png
+image: /assets/papers/moe-equal-resources-p1/reform_datas/figs_data_reuse/7B_data_reuse_degradation_viz.png
 hide_description_in_header: true
 source_format: single-bilingual
 sections:
