@@ -41,5 +41,6 @@ After imports that change the article set, also inspect the homepage screenshot 
 - Pinned rail reflects `pinned: true` posts.
 - Topics and search placeholder use current tags only.
 - My Papers / Open Source / Reading Notes navigation lands on real sections or clear empty states.
+- Asset URLs should load under the current deployed base/domain; if they do not, report it as an importer/link issue rather than changing domain configuration inside the import task.
 
 Fix issues by changing importer rules, sidecar metadata, source draft, or CSS, then reimport/rebuild.

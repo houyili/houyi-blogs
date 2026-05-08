@@ -9,6 +9,8 @@ description: Use when Codex needs to import paper/project Markdown drafts into t
 
 Use the repository importer as the source of truth. Do not rewrite article prose, manually rebuild HTML, or hand-copy assets. LLM context is allowed only for metadata assistance, failure diagnosis, source sanity checks, and suggestions for importer/CSS fixes.
 
+Do not change deployment ownership while importing. `astro.config.mjs`, `public/CNAME`, GitHub Pages settings, and domain/DNS choices are outside this skill unless the user explicitly asks for deployment changes. The importer reads the current Astro base path and should adapt generated links to it.
+
 ## Runbook
 
 1. Work in the `houyi-blogs` repository and inspect the source draft shape:
@@ -41,6 +43,7 @@ npm run verify:visual -- --slug <slug>
    - removed old slugs are absent from `dist/`
    - homepage cards, pinned rail, topics, and search placeholder are generated from the current posts
    - no stale placeholder posts remain
+   - asset links match the current deployment base; do not fix this by changing domain config unless explicitly requested
 8. If anything fails, fix importer rules, sidecar metadata, source draft, or site CSS, then rerun import. Do not patch generated article bodies.
 
 ## Long Paper Split Pattern

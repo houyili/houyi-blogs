@@ -83,6 +83,7 @@ sources:
 - `hide_description_in_header: true` prevents duplicate subtitles when the source body already contains a subtitle/download card block.
 - `footer_nav` is the only supported way to add previous/next links to imported posts.
 - If replacing a long old single post with split posts, delete the old generated MDX, old asset directory, and old fixture config in the same change.
+- Do not change `astro.config.mjs`, `public/CNAME`, GitHub Pages settings, or DNS/domain configuration as part of an import. Treat deployment base/domain as an external project setting.
 
 ## Program-Based Transformations
 
@@ -92,6 +93,7 @@ Allowed mechanical changes:
 - Promote source `###` headings to article-local `##`.
 - Normalize display math so KaTeX treats `\tag{}` as display math.
 - Rewrite local assets to `/assets/papers/<slug>/...`.
+- The importer should derive any needed deployment prefix from the existing Astro config; sidecar YAML should stay portable and should not hard-code a domain-specific workaround.
 - Copy assets from configured `asset_roots`.
 - Rewrite raw HTML `<img src="...">` and `<a href="...">` local resources, including download links.
 - Decode local URL-encoded paths such as `Final%20vision/...` for filesystem lookup, then keep safe URL encoding in generated routes.
