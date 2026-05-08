@@ -1,0 +1,178 @@
+{
+  "slug": "moe-equal-resources-p1",
+  "config": "scripts/fixtures/moe-equal-resources-p1.import.yaml",
+  "source": {
+    "single": "/Users/jyxc-dz-0100301/Documents/项目文档/paper/iclr2026/blog_body.md"
+  },
+  "imported_at": "2026-05-08T01:38:46.858Z",
+  "hashes": {
+    "source": "aa443f4bd93ce09b3a404c85a5631328702fbc8302cb8e9968dd8e4e6c818960",
+    "english_segment": "8ab207b13bcb0cf8e0fba66ac9ff1887261861db2705fc72a5f99526fad908c7",
+    "chinese_segment": "2c93da4af7e4bfaca0c4bcd9ca57e64337e97c0c5ee2cf07fba51fdf4702c25e",
+    "normalized_source_text": "ed241ccffc9d5eba87aeb2f26ea6a471dcf1f5d69c15c5c809a896fea81d3356",
+    "normalized_generated_text": "ed241ccffc9d5eba87aeb2f26ea6a471dcf1f5d69c15c5c809a896fea81d3356",
+    "english_output": "015121acc4140213417c1aadc97e0b40dad0eca287c5785ffa38cad33986027b",
+    "chinese_output": "db95837f384e8e8f50938ab751a685d6916d4c0b8e251dd9df45a2b825b2b415"
+  },
+  "outputs": {
+    "en": "src/content/post/en/moe-equal-resources-p1.mdx",
+    "zh": "src/content/post/zh/moe-equal-resources-p1.mdx",
+    "assets": "public/assets/papers/moe-equal-resources-p1"
+  },
+  "counts": {
+    "source": {
+      "images": 24,
+      "tables": 52,
+      "figures": 22,
+      "figcaptions": 56,
+      "displayMath": 8,
+      "inlineMathApprox": 67,
+      "equationTags": 8,
+      "rawHtmlBlocks": 16,
+      "headings": 22
+    },
+    "english_segment": {
+      "images": 12,
+      "tables": 26,
+      "figures": 11,
+      "figcaptions": 16,
+      "displayMath": 4,
+      "inlineMathApprox": 33,
+      "equationTags": 4,
+      "rawHtmlBlocks": 8,
+      "headings": 11
+    },
+    "chinese_segment": {
+      "images": 12,
+      "tables": 26,
+      "figures": 11,
+      "figcaptions": 40,
+      "displayMath": 4,
+      "inlineMathApprox": 34,
+      "equationTags": 4,
+      "rawHtmlBlocks": 8,
+      "headings": 11
+    },
+    "generated": {
+      "images": 24,
+      "tables": 52,
+      "figures": 22,
+      "figcaptions": 56,
+      "displayMath": 8,
+      "inlineMathApprox": 67,
+      "equationTags": 8,
+      "rawHtmlBlocks": 16,
+      "headings": 22
+    }
+  },
+  "assets": {
+    "referenced": [
+      "Final%20vision/v20260422_225200/poster.pdf",
+      "Final%20vision/v20260425_183821/slides.pdf",
+      "blog_assets/pt_avg.png",
+      "blog_assets/sft_avg.png",
+      "blog_assets/sft_knowledge.png",
+      "blog_assets/sft_reasoning.png",
+      "blog_assets/three_step_methodology_blog_v2_en.svg",
+      "blog_assets/three_step_methodology_blog_v2_zh.svg",
+      "camera_ready.pdf",
+      "reform_datas/figs_data_reuse/2B_keep_compute_clean.png",
+      "reform_datas/figs_data_reuse/2B_keep_data_clean.png",
+      "reform_datas/figs_data_reuse/3B_data_reuse_degradation_viz.png",
+      "reform_datas/figs_data_reuse/7B_data_reuse_degradation_viz.png",
+      "reform_datas/figs_data_reuse/7B_data_reuse_impact.png",
+      "reform_datas/figs_empirical/3B_7B_ratio_comparison.png",
+      "reform_datas/figs_empirical/3B_7B_train_token_ratio_combined.png"
+    ],
+    "copied": [
+      {
+        "source": "Final%20vision/v20260422_225200/poster.pdf",
+        "bytes": 2176576,
+        "output": "public/assets/papers/moe-equal-resources-p1/Final vision/v20260422_225200/poster.pdf"
+      },
+      {
+        "source": "Final%20vision/v20260425_183821/slides.pdf",
+        "bytes": 7640796,
+        "output": "public/assets/papers/moe-equal-resources-p1/Final vision/v20260425_183821/slides.pdf"
+      },
+      {
+        "source": "blog_assets/pt_avg.png",
+        "bytes": 152201,
+        "output": "public/assets/papers/moe-equal-resources-p1/blog_assets/pt_avg.png"
+      },
+      {
+        "source": "blog_assets/sft_avg.png",
+        "bytes": 144888,
+        "output": "public/assets/papers/moe-equal-resources-p1/blog_assets/sft_avg.png"
+      },
+      {
+        "source": "blog_assets/sft_knowledge.png",
+        "bytes": 131974,
+        "output": "public/assets/papers/moe-equal-resources-p1/blog_assets/sft_knowledge.png"
+      },
+      {
+        "source": "blog_assets/sft_reasoning.png",
+        "bytes": 143674,
+        "output": "public/assets/papers/moe-equal-resources-p1/blog_assets/sft_reasoning.png"
+      },
+      {
+        "source": "blog_assets/three_step_methodology_blog_v2_en.svg",
+        "bytes": 4492,
+        "output": "public/assets/papers/moe-equal-resources-p1/blog_assets/three_step_methodology_blog_v2_en.svg"
+      },
+      {
+        "source": "blog_assets/three_step_methodology_blog_v2_zh.svg",
+        "bytes": 4526,
+        "output": "public/assets/papers/moe-equal-resources-p1/blog_assets/three_step_methodology_blog_v2_zh.svg"
+      },
+      {
+        "source": "camera_ready.pdf",
+        "bytes": 337969,
+        "output": "public/assets/papers/moe-equal-resources-p1/camera_ready.pdf"
+      },
+      {
+        "source": "reform_datas/figs_data_reuse/2B_keep_compute_clean.png",
+        "bytes": 212397,
+        "output": "public/assets/papers/moe-equal-resources-p1/reform_datas/figs_data_reuse/2B_keep_compute_clean.png"
+      },
+      {
+        "source": "reform_datas/figs_data_reuse/2B_keep_data_clean.png",
+        "bytes": 261205,
+        "output": "public/assets/papers/moe-equal-resources-p1/reform_datas/figs_data_reuse/2B_keep_data_clean.png"
+      },
+      {
+        "source": "reform_datas/figs_data_reuse/3B_data_reuse_degradation_viz.png",
+        "bytes": 489802,
+        "output": "public/assets/papers/moe-equal-resources-p1/reform_datas/figs_data_reuse/3B_data_reuse_degradation_viz.png"
+      },
+      {
+        "source": "reform_datas/figs_data_reuse/7B_data_reuse_degradation_viz.png",
+        "bytes": 591842,
+        "output": "public/assets/papers/moe-equal-resources-p1/reform_datas/figs_data_reuse/7B_data_reuse_degradation_viz.png"
+      },
+      {
+        "source": "reform_datas/figs_data_reuse/7B_data_reuse_impact.png",
+        "bytes": 353520,
+        "output": "public/assets/papers/moe-equal-resources-p1/reform_datas/figs_data_reuse/7B_data_reuse_impact.png"
+      },
+      {
+        "source": "reform_datas/figs_empirical/3B_7B_ratio_comparison.png",
+        "bytes": 207420,
+        "output": "public/assets/papers/moe-equal-resources-p1/reform_datas/figs_empirical/3B_7B_ratio_comparison.png"
+      },
+      {
+        "source": "reform_datas/figs_empirical/3B_7B_train_token_ratio_combined.png",
+        "bytes": 173951,
+        "output": "public/assets/papers/moe-equal-resources-p1/reform_datas/figs_empirical/3B_7B_train_token_ratio_combined.png"
+      }
+    ],
+    "missing": []
+  },
+  "validation": {
+    "missingAssets": [],
+    "localPathLeaks": [],
+    "countMismatches": [],
+    "textHashesMatch": true,
+    "textDiffPolicy": "Expected mechanical differences: frontmatter, language split, heading-level promotion, references rendered in both language outputs, asset URL rewrite, display-math normalization, and JSX-safe normalization for raw HTML attributes."
+  }
+}

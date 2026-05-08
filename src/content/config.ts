@@ -20,6 +20,7 @@ const post = defineCollection({
     venue: z.string().optional(),
     venue_type: z.string().optional(),
     paper_url: z.string().optional(),
+    hide_description_in_header: z.boolean().default(false),
     source_project: z.string().optional(),
     source_draft: z.string().optional(),
     source_hash: z.string().optional(),

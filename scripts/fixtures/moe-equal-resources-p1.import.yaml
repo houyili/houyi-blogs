@@ -1,0 +1,58 @@
+slug: moe-equal-resources-p1
+published: "2026-05-08"
+updated: "2026-05-08"
+pinned: true
+paper: true
+project: moe-equal-resources
+venue: ICLR 2026
+venue_type: Oral
+paper_url: ""
+image: /assets/papers/moe-equal-resources-p1/reform_datas/figs_empirical/3B_7B_train_token_ratio_combined.png
+hide_description_in_header: true
+source_format: single-bilingual
+sections:
+  en_marker: '^## I\. English Draft\s*$'
+  zh_marker: '^## II\. 中文稿.*$'
+posts:
+  en:
+    title: Can We Train an MoE Model with the Same Total Parameters and Performance as Dense?
+    description: "An ICLR 2026 Oral paper explainer: MoE needs a more aggressive data scaling strategy."
+    category: Paper Explainer · P1
+    read_time: 30 min read
+    tags:
+      - MoE
+      - Pretrain
+      - LLM
+      - ICLR 2026 oral
+      - Data Scaling
+      - Data Reuse
+  zh:
+    title: 能否训出和 Dense 总参相同、性能相同的 MoE 模型？
+    description: ICLR 2026 Oral Paper的解读：MoE 需要更加激进的 Data Scaling 策略
+    category: 论文解读 · P1
+    read_time: 30 分钟
+    tags:
+      - MoE
+      - Pretrain
+      - LLM
+      - ICLR 2026 oral
+      - Data Scaling
+      - Data Reuse
+footer_nav:
+  en:
+    next:
+      label: Next
+      title: Appendix (P2)
+      href: en/moe-equal-resources-p2/
+  zh:
+    next:
+      label: 下一篇
+      title: 附录（P2）
+      href: zh/moe-equal-resources-p2/
+asset_roots:
+  - blog_assets
+  - reform_datas
+  - references
+  - camera_ready.pdf
+  - Final vision
+  - Final%20vision

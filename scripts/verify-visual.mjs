@@ -12,7 +12,7 @@ const args = parseArgs(process.argv.slice(2));
 const slug = args.slug;
 const chrome = args.chrome || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const port = Number(args.port || 4321);
-const baseUrl = `http://127.0.0.1:${port}/houyi-blogs`;
+const baseUrl = `http://127.0.0.1:${port}`;
 
 if (!slug) throw new Error("Usage: npm run verify:visual -- --slug <slug>");
 if (!existsSync(chrome)) throw new Error(`Chrome not found at ${chrome}. Install Google Chrome or pass --chrome <path>.`);

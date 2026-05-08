@@ -5,8 +5,8 @@ import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
 
 export default defineConfig({
-  site: "https://houyili.github.io",
-  base: "/houyi-blogs",
+  site: "https://houyi.blog",
+  base: "/",
   integrations: [mdx(), sitemap()],
   markdown: {
     remarkPlugins: [remarkMath],

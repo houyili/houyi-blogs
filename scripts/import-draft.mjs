@@ -34,7 +34,8 @@ const enMdx = createPostMdx({
   body: enBody.markdown,
   source: loaded,
   setup,
-  importedAt
+  importedAt,
+  siteBase
 });
 const zhMdx = createPostMdx({
   lang: "zh",
@@ -42,7 +43,8 @@ const zhMdx = createPostMdx({
   body: zhBody.markdown,
   source: loaded,
   setup,
-  importedAt
+  importedAt,
+  siteBase
 });
 
 const outRoot = args.dryRun ? path.join(repoRoot, "tmp", "import-dry-run", setup.config.slug, "content") : repoRoot;
@@ -177,6 +179,8 @@ function normalizeConfig(config) {
   config.paper ??= true;
   config.paper_url ??= "";
   config.image ??= "";
+  config.hide_description_in_header ??= false;
+  config.footer_nav ??= {};
   config.posts ??= {};
   config.posts.en ??= {};
   config.posts.zh ??= {};
@@ -317,6 +321,7 @@ function collectReferencedAssets(markdown, assetRoots = defaultAssetRoots) {
   const found = new Set();
   const patterns = [
     /<img\b[^>]*\bsrc="([^"]+)"/g,
+    /<a\b[^>]*\bhref="([^"]+)"/g,
     /!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g,
     /\[[^\]]+]\(([^)\s]+)(?:\s+"[^"]*")?\)/g
   ];
@@ -332,6 +337,10 @@ function collectReferencedAssets(markdown, assetRoots = defaultAssetRoots) {
 function rewriteAssetPaths(markdown, config, sourceProject, siteBase) {
   return markdown
     .replace(/(<img\b[^>]*\bsrc=")([^"]+)(")/g, (full, prefix, target, suffix) => {
+      if (!isLocalAsset(target, config.asset_roots)) return full;
+      return `${prefix}${webPathFor(target, config.slug, sourceProject, siteBase)}${suffix}`;
+    })
+    .replace(/(<a\b[^>]*\bhref=")([^"]+)(")/g, (full, prefix, target, suffix) => {
       if (!isLocalAsset(target, config.asset_roots)) return full;
       return `${prefix}${webPathFor(target, config.slug, sourceProject, siteBase)}${suffix}`;
     })
@@ -373,13 +382,43 @@ function cssPropertyToJs(property) {
 }
 
 function isLocalAsset(target, assetRoots = defaultAssetRoots) {
-  return assetRoots.some((root) => target === root || target.startsWith(`${root}/`));
+  const local = localAssetPath(target);
+  if (!local) return false;
+  return assetRoots.some((root) => {
+    const normalizedRoot = normalizeAssetRoot(root);
+    return local.decoded === normalizedRoot || local.decoded.startsWith(`${normalizedRoot}/`);
+  });
+}
+
+function localAssetPath(target) {
+  if (!target) return undefined;
+  if (/^(?:https?:|mailto:|tel:|#|\/)/.test(target)) return undefined;
+  const clean = target.split(/[?#]/)[0].replace(/^\.\//, "");
+  try {
+    return { original: clean, decoded: decodeURIComponent(clean) };
+  } catch {
+    return { original: clean, decoded: clean };
+  }
+}
+
+function normalizeAssetRoot(root) {
+  const clean = String(root).replace(/^\.\//, "");
+  try {
+    return decodeURIComponent(clean);
+  } catch {
+    return clean;
+  }
 }
 
 function webPathFor(target, slug, sourceProject, siteBase) {
-  const absolute = path.resolve(sourceProject, target);
+  const local = localAssetPath(target);
+  const absolute = path.resolve(sourceProject, local?.decoded ?? target);
   const relative = path.relative(sourceProject, absolute).split(path.sep).join("/");
-  return `${siteBase}/assets/papers/${slug}/${relative}`;
+  return `${siteBase}/assets/papers/${slug}/${encodePath(relative)}`;
+}
+
+function encodePath(relativePath) {
+  return relativePath.split("/").map((segment) => encodeURIComponent(segment)).join("/");
 }
 
 async function readAstroBase() {
@@ -394,22 +433,27 @@ async function copyReferencedAssets(assets, sourceProject, outRoot) {
   await mkdir(outRoot, { recursive: true });
   const copied = [];
   const missing = [];
-  for (const asset of [...new Set(assets)].sort()) {
-    const from = path.resolve(sourceProject, asset);
-    const to = path.join(outRoot, asset);
+  const uniqueAssets = new Map();
+  for (const asset of assets) {
+    const local = localAssetPath(asset);
+    if (local) uniqueAssets.set(local.decoded, asset);
+  }
+  for (const [decodedAsset, originalAsset] of [...uniqueAssets.entries()].sort()) {
+    const from = path.resolve(sourceProject, decodedAsset);
+    const to = path.join(outRoot, decodedAsset);
     if (!existsSync(from)) {
-      missing.push(asset);
+      missing.push(originalAsset);
       continue;
     }
     await mkdir(path.dirname(to), { recursive: true });
     await copyFile(from, to);
     const info = await stat(to);
-    copied.push({ source: asset, bytes: info.size, output: to });
+    copied.push({ source: originalAsset, bytes: info.size, output: to });
   }
   return { copied, missing };
 }
 
-function createPostMdx({ lang, post, body, source, setup, importedAt }) {
+function createPostMdx({ lang, post, body, source, setup, importedAt, siteBase }) {
   const { config } = setup;
   const frontmatter = {
     title: post.title,
@@ -421,7 +465,7 @@ function createPostMdx({ lang, post, body, source, setup, importedAt }) {
     translation: post.translation,
     category: post.category,
     read_time: post.read_time,
-    image: config.image ? withSiteBase(config.image) : "",
+    image: config.image ? withSiteBase(config.image, siteBase) : "",
     tags: post.tags,
     pinned: Boolean(config.pinned),
     paper: Boolean(config.paper),
@@ -429,17 +473,51 @@ function createPostMdx({ lang, post, body, source, setup, importedAt }) {
     venue: config.venue ?? "",
     venue_type: config.venue_type ?? "",
     paper_url: config.paper_url ?? "",
+    hide_description_in_header: Boolean(config.hide_description_in_header),
     source_project: source.sourceProject,
     source_draft: source.sourceDraft,
     source_hash: source.sourceHash,
     imported_at: importedAt,
     draft: false
   };
-  return `---\n${toYaml(frontmatter)}---\n\n${body}\n`;
+  const bodyWithFooter = appendFooterNav(body, config, lang, siteBase);
+  return `---\n${toYaml(frontmatter)}---\n\n${bodyWithFooter}\n`;
 }
 
-function withSiteBase(image) {
-  if (!image || image.startsWith("http") || image.startsWith("/houyi-blogs/")) return image;
+function appendFooterNav(body, config, lang, siteBase) {
+  const footer = config.footer_nav?.[lang];
+  if (!footer) return body;
+  const items = ["previous", "next"]
+    .map((direction) => [direction, footer[direction]])
+    .filter(([, item]) => item?.href && item?.title);
+  if (items.length === 0) return body;
+  const ariaLabel = lang === "zh" ? "文章导航" : "Post navigation";
+  const links = items.map(([direction, item]) => {
+    const href = footerHref(item.href, siteBase);
+    const label = item.label ?? (direction === "next" ? "Next" : "Previous");
+    return `  <a className="post-footer-nav-link ${direction}" href="${escapeHtml(href)}">\n    <span>${escapeHtml(label)}</span>\n    <strong>${escapeHtml(item.title)}</strong>\n  </a>`;
+  }).join("\n");
+  return `${body}\n\n<nav className="post-footer-nav" data-import-footer-nav="true" aria-label="${ariaLabel}">\n${links}\n</nav>`;
+}
+
+function footerHref(href, siteBase) {
+  if (/^https?:/.test(href) || href.startsWith(`${siteBase}/`)) return href;
+  if (href.startsWith("/")) return href;
+  return `${siteBase}/${href.replace(/^\/+/, "")}`;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function withSiteBase(image, siteBase = "") {
+  if (!image || image.startsWith("http")) return image;
+  if (image.startsWith("/houyi-blogs/")) return image.replace(/^\/houyi-blogs(?=\/)/, "");
+  if (siteBase && image.startsWith(`${siteBase}/`)) return image;
   if (image.startsWith("/assets/")) return image;
   return image;
 }
@@ -548,6 +626,7 @@ function countFeatures(markdown) {
 function comparableText(markdown) {
   return markdown
     .replace(/^---[\s\S]*?---\s*/, "")
+    .replace(/<nav\b[^>]*data-import-footer-nav="true"[\s\S]*?<\/nav>/g, " ")
     .replace(/!\[([^\]]*)]\([^)]+\)/g, "$1")
     .replace(/\[([^\]]+)]\([^)]+\)/g, "$1")
     .replace(/<[^>]+>/g, " ")

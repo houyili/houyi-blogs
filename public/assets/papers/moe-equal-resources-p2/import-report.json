@@ -1,0 +1,142 @@
+{
+  "slug": "moe-equal-resources-p2",
+  "config": "scripts/fixtures/moe-equal-resources-p2.import.yaml",
+  "source": {
+    "single": "/Users/jyxc-dz-0100301/Documents/项目文档/paper/iclr2026/blog_appendix.md"
+  },
+  "imported_at": "2026-05-08T01:38:46.858Z",
+  "hashes": {
+    "source": "ce0e7be1e0a1a15d963309deed00193b0ab4678a0061c33e699d35de3d60cf64",
+    "english_segment": "fefd155ad87e09ca8b65b87a5478b60f2f02c981be45b29089e62b8b82cd426a",
+    "chinese_segment": "557db031a67a66022ba363964e80de2d567eb010c187d24eea3d8ef92b8a4ecb",
+    "normalized_source_text": "31c784be64737cec87ff100f77f7d2038b622ab0750345e3f17a13b7bc55263b",
+    "normalized_generated_text": "31c784be64737cec87ff100f77f7d2038b622ab0750345e3f17a13b7bc55263b",
+    "english_output": "706cff48ff85ba0abbb6cbd125d7cf71740d062b5abd9519dda748c63339cd42",
+    "chinese_output": "08f3be14a1e02dd36117751ae4f9b6885454ecb74624e05f0babe9ec444a7502"
+  },
+  "outputs": {
+    "en": "src/content/post/en/moe-equal-resources-p2.mdx",
+    "zh": "src/content/post/zh/moe-equal-resources-p2.mdx",
+    "assets": "public/assets/papers/moe-equal-resources-p2"
+  },
+  "counts": {
+    "source": {
+      "images": 8,
+      "tables": 44,
+      "figures": 0,
+      "figcaptions": 20,
+      "displayMath": 46,
+      "inlineMathApprox": 176,
+      "equationTags": 46,
+      "rawHtmlBlocks": 2,
+      "headings": 38
+    },
+    "english_segment": {
+      "images": 4,
+      "tables": 22,
+      "figures": 0,
+      "figcaptions": 6,
+      "displayMath": 23,
+      "inlineMathApprox": 85,
+      "equationTags": 23,
+      "rawHtmlBlocks": 1,
+      "headings": 18
+    },
+    "chinese_segment": {
+      "images": 4,
+      "tables": 22,
+      "figures": 0,
+      "figcaptions": 14,
+      "displayMath": 23,
+      "inlineMathApprox": 91,
+      "equationTags": 23,
+      "rawHtmlBlocks": 1,
+      "headings": 19
+    },
+    "generated": {
+      "images": 8,
+      "tables": 44,
+      "figures": 0,
+      "figcaptions": 20,
+      "displayMath": 46,
+      "inlineMathApprox": 176,
+      "equationTags": 46,
+      "rawHtmlBlocks": 2,
+      "headings": 38
+    }
+  },
+  "assets": {
+    "referenced": [
+      "Final%20vision/v20260422_225200/poster.pdf",
+      "Final%20vision/v20260425_183821/slides.pdf",
+      "blog_assets/arch_fig_shape_ratios.png",
+      "blog_assets/arch_table_gate_norm.png",
+      "blog_assets/arch_table_layer_arrangement.png",
+      "blog_assets/arch_table_topk.png",
+      "camera_ready.pdf",
+      "references/deepseek-v2-2405.04434.pdf",
+      "references/deepseekmoe-2401.06066.pdf",
+      "references/kimi-k2-2507.20534.pdf"
+    ],
+    "copied": [
+      {
+        "source": "Final%20vision/v20260422_225200/poster.pdf",
+        "bytes": 2176576,
+        "output": "public/assets/papers/moe-equal-resources-p2/Final vision/v20260422_225200/poster.pdf"
+      },
+      {
+        "source": "Final%20vision/v20260425_183821/slides.pdf",
+        "bytes": 7640796,
+        "output": "public/assets/papers/moe-equal-resources-p2/Final vision/v20260425_183821/slides.pdf"
+      },
+      {
+        "source": "blog_assets/arch_fig_shape_ratios.png",
+        "bytes": 89642,
+        "output": "public/assets/papers/moe-equal-resources-p2/blog_assets/arch_fig_shape_ratios.png"
+      },
+      {
+        "source": "blog_assets/arch_table_gate_norm.png",
+        "bytes": 23968,
+        "output": "public/assets/papers/moe-equal-resources-p2/blog_assets/arch_table_gate_norm.png"
+      },
+      {
+        "source": "blog_assets/arch_table_layer_arrangement.png",
+        "bytes": 64828,
+        "output": "public/assets/papers/moe-equal-resources-p2/blog_assets/arch_table_layer_arrangement.png"
+      },
+      {
+        "source": "blog_assets/arch_table_topk.png",
+        "bytes": 23596,
+        "output": "public/assets/papers/moe-equal-resources-p2/blog_assets/arch_table_topk.png"
+      },
+      {
+        "source": "camera_ready.pdf",
+        "bytes": 337969,
+        "output": "public/assets/papers/moe-equal-resources-p2/camera_ready.pdf"
+      },
+      {
+        "source": "references/deepseek-v2-2405.04434.pdf",
+        "bytes": 1586880,
+        "output": "public/assets/papers/moe-equal-resources-p2/references/deepseek-v2-2405.04434.pdf"
+      },
+      {
+        "source": "references/deepseekmoe-2401.06066.pdf",
+        "bytes": 733666,
+        "output": "public/assets/papers/moe-equal-resources-p2/references/deepseekmoe-2401.06066.pdf"
+      },
+      {
+        "source": "references/kimi-k2-2507.20534.pdf",
+        "bytes": 5872335,
+        "output": "public/assets/papers/moe-equal-resources-p2/references/kimi-k2-2507.20534.pdf"
+      }
+    ],
+    "missing": []
+  },
+  "validation": {
+    "missingAssets": [],
+    "localPathLeaks": [],
+    "countMismatches": [],
+    "textHashesMatch": true,
+    "textDiffPolicy": "Expected mechanical differences: frontmatter, language split, heading-level promotion, references rendered in both language outputs, asset URL rewrite, display-math normalization, and JSX-safe normalization for raw HTML attributes."
+  }
+}

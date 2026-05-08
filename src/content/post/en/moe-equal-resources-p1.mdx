@@ -1,0 +1,320 @@
+---
+title: "Can We Train an MoE Model with the Same Total Parameters and Performance as Dense?"
+description: "An ICLR 2026 Oral paper explainer: MoE needs a more aggressive data scaling strategy."
+published: "2026-05-08"
+updated: "2026-05-08"
+lang: "en"
+post_slug: "moe-equal-resources-p1"
+translation: "zh/moe-equal-resources-p1"
+category: "Paper Explainer · P1"
+read_time: "30 min read"
+image: "/assets/papers/moe-equal-resources-p1/reform_datas/figs_empirical/3B_7B_train_token_ratio_combined.png"
+tags:
+  - "MoE"
+  - "Pretrain"
+  - "LLM"
+  - "ICLR 2026 oral"
+  - "Data Scaling"
+  - "Data Reuse"
+pinned: true
+paper: true
+project: "moe-equal-resources"
+venue: "ICLR 2026"
+venue_type: "Oral"
+paper_url: ""
+hide_description_in_header: true
+source_project: "/Users/jyxc-dz-0100301/Documents/项目文档/paper/iclr2026"
+source_draft: "blog_body.md"
+source_hash: "aa443f4bd93ce09b3a404c85a5631328702fbc8302cb8e9968dd8e4e6c818960"
+imported_at: "2026-05-08T01:38:46.858Z"
+draft: false
+---
+
+<p style={{ fontSize: "1.18em", margin: "-4px 0 14px" }}><strong>An ICLR 2026 Oral paper explainer: MoE needs a more aggressive data scaling strategy.</strong></p>
+
+<div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "12px", margin: "0 0 22px" }}>
+  <a href="/assets/papers/moe-equal-resources-p1/camera_ready.pdf" style={{ display: "block", border: "1px solid #d8e2f0", borderRadius: "8px", padding: "12px 14px", background: "#f8fbff", textDecoration: "none", color: "inherit" }}>
+    <div style={{ fontWeight: "700" }}>ICLR 2026 Oral</div>
+    <div>Camera Ready PDF</div>
+  </a>
+  <a href="/assets/papers/moe-equal-resources-p1/Final%20vision/v20260425_183821/slides.pdf" style={{ display: "block", border: "1px solid #d8e2f0", borderRadius: "8px", padding: "12px 14px", background: "#f8fbff", textDecoration: "none", color: "inherit" }}>
+    <div style={{ fontWeight: "700" }}>Slides</div>
+    <div>Talk slides PDF</div>
+  </a>
+  <a href="/assets/papers/moe-equal-resources-p1/Final%20vision/v20260422_225200/poster.pdf" style={{ display: "block", border: "1px solid #d8e2f0", borderRadius: "8px", padding: "12px 14px", background: "#f8fbff", textDecoration: "none", color: "inherit" }}>
+    <div style={{ fontWeight: "700" }}>Poster</div>
+    <div>Conference poster PDF</div>
+  </a>
+</div>
+
+## 1. The short version
+
+The central question of this work is simple:
+
+> Can we train an MoE LLM that matches a Dense LLM under the same total parameter count and the same training compute, so that the inference-time FLOPs reduction becomes an effectively free gain with respect to model size and training compute?
+
+Our answer is:
+
+1. Under fixed total parameters and fixed training compute, if MoE wants to match Dense, the core cost is not parameters but tokens: it pays roughly $1/r_a$ times more consumed training tokens, where $r_a=N_a/N$ is the activation rate, i.e., activated parameters over total parameters. In exchange, MoE reduces per-token FLOPs to roughly $r_a$ of Dense.
+2. This bargain only works in a good activation-rate region. MoE is not "the sparser, the better"; across these experiments, the useful band is moderate, roughly 10%-30%, while larger model scales may expand or shift this region toward sparser MoEs.
+3. When unique data is limited, moderate data reuse can preserve much of the MoE advantage.
+
+This answer is backed by a large experimental sweep, not a single cherry-picked run:
+
+<div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "12px", margin: "14px 0 18px" }}>
+  <div style={{ border: "1px solid #d8e2f0", borderRadius: "8px", padding: "12px 14px", background: "#f8fbff" }}>
+    <div style={{ fontSize: "1.35em", fontWeight: "700" }}>nearly 200</div>
+    <div>2B-scale LLMs trained from scratch</div>
+  </div>
+  <div style={{ border: "1px solid #d8e2f0", borderRadius: "8px", padding: "12px 14px", background: "#f8fbff" }}>
+    <div style={{ fontSize: "1.35em", fontWeight: "700" }}>over 50</div>
+    <div>7B-scale LLMs trained from scratch</div>
+  </div>
+  <div style={{ border: "1px solid #d8e2f0", borderRadius: "8px", padding: "12px 14px", background: "#f8fbff" }}>
+    <div style={{ fontSize: "1.35em", fontWeight: "700" }}>50T</div>
+    <div>training tokens processed</div>
+  </div>
+  <div style={{ border: "1px solid #d8e2f0", borderRadius: "8px", padding: "12px 14px", background: "#f8fbff" }}>
+    <div style={{ fontSize: "1.35em", fontWeight: "700" }}>open-sourced</div>
+    <div>model checkpoints</div>
+  </div>
+</div>
+
+In other words, the practical recipe is:
+
+> Optimized MoE backbone + a suitable activation rate + aggressive token scaling, with moderate data reuse when unique tokens are limited.
+
+## 2. Motivation: the blind spot---parameter subsidy
+
+Two common comparison styles appear in the literature:
+
+- Fix the data and training setup, then emphasize active-compute efficiency. DeepSeekMoE 16B is a typical example: trained on the same 2T-token corpus, it reports comparable performance to DeepSeek 7B Dense with only about 40% of the computation, and comparable performance to LLaMA2 7B, while using a larger total-parameter MoE reservoir [1].
+- Fix the active expert budget or target per-token compute, then increase the number of total experts. Kimi K2's sparsity scaling ablation is a clear example of this perspective [3].
+
+Both perspectives are useful, but neither controls total parameters, which determine capacity, HBM footprint, checkpoint size, and the minimum deployment unit; in practice, when the batch size is large, almost all experts are activated somewhere in the batch. The sharper question is therefore: if Dense and MoE have the same total parameter count and the same training compute, can MoE still match or surpass Dense? A yes would mean the gain is not merely a parameter subsidy, but evidence that sparsity can become a real architectural advantage when trained correctly.
+
+## 3. The resource equation
+
+For a Dense model, the paper approximates per-token forward computation as:
+
+$$
+M_{\text{Dense}} \approx 2N\kappa_{\text{Dense}}. \tag{1}
+$$
+
+Here $M$ denotes per-token forward FLOPs, $N$ denotes total non-embedding parameters, and $\kappa_{\text{Dense}}$ absorbs Dense shape factors such as sequence length, model width, and FFN expansion ratio.
+
+For an MoE model with the same total parameter count:
+
+$$
+M_{\text{MoE}} \approx 2r_aN\kappa_{\text{MoE}}. \tag{2}
+$$
+
+Here $N_a$ denotes activated parameters, $r_a = N_a/N$ is the activation rate, and $\kappa_{\text{MoE}}$ absorbs the corresponding MoE shape factors. Once the backbone shape is fixed, $\kappa_{\text{Dense}}$ and $\kappa_{\text{MoE}}$ are approximately constant. The full parameterization from the paper is unpacked in English Appendix A, and the full notation table is in English Appendix D.
+
+If $D$ denotes consumed training tokens and $C$ denotes total training compute, then equal training compute gives:
+
+$$
+C_{\text{Dense}} \approx M_{\text{Dense}}D_{\text{Dense}} \approx M_{\text{MoE}}D_{\text{MoE}} \approx C_{\text{MoE}}. \tag{3}
+$$
+
+Rearranging gives:
+
+$$
+\frac{D_{\text{MoE}}}{D_{\text{Dense}}} \approx \frac{1}{r_a}\frac{\kappa_{\text{Dense}}}{\kappa_{\text{MoE}}} \propto \frac{1}{r_a}. \tag{4}
+$$
+
+This is the key trade-off.
+
+At the same total parameter count, a 20% activation-rate MoE has roughly one fifth of the Dense per-token FFN-style compute, but to spend the same training compute it must process roughly 5x as many tokens, up to shape-factor corrections.
+
+The paper also empirically verifies both sides of this relationship: MoE per-token FLOPs are close to linear in $r_a$ across the 3B and 7B settings (Figure 1a), and under equal compute, the consumed-token multiplier is close to linear in $1/r_a$ (Figure 1b).
+
+<div style={{ display: "flex", gap: "18px", alignItems: "flex-start" }}>
+  <figure style={{ flex: "1", margin: "0" }}>
+    <img src="/assets/papers/moe-equal-resources-p1/reform_datas/figs_empirical/3B_7B_ratio_comparison.png" alt="Per-token FLOPs ratio vs activation rate" style={{ width: "100%" }} />
+    <figcaption><em>Figure 1a. MoE per-token FLOPs are approximately linear in activation rate once architecture shape is controlled.</em></figcaption>
+  </figure>
+  <figure style={{ flex: "1", margin: "0" }}>
+    <img src="/assets/papers/moe-equal-resources-p1/reform_datas/figs_empirical/3B_7B_train_token_ratio_combined.png" alt="Empirical validation of train-token ratio vs inverse activation rate" style={{ width: "100%" }} />
+    <figcaption><em>Figure 1b. Empirical validation that the MoE train-token ratio scales with the inverse activation rate across 3B and 7B experiments.</em></figcaption>
+  </figure>
+</div>
+
+## 4. The three-step methodology
+
+Eqs. (2)-(3) imply that, after dropping the common forward/backward multiplier, MoE training compute behaves roughly as $C_{\text{MoE}} \approx 2r_aN\kappa_{\text{MoE}}D$. A full compute-optimal MoE study would therefore have to sweep at least architecture, sparsity, total parameters $N$, and the training-token ratio $D/N$. This is much higher-dimensional than the usual Dense scaling-law sweep over $N$ and $D/N$. Under a finite experiment budget, the paper chooses a greedy route instead: reduce the number of model configurations, but train each configuration deeply enough that the comparison is in a sufficiently trained regime, closer to how production SOTA models are trained.
+
+![Three-step methodology pipeline](/assets/papers/moe-equal-resources-p1/blog_assets/three_step_methodology_blog_v2_en.svg)
+
+*Figure 2. Blog-native view of the paper's three-step methodology: first optimize and lock the MoE backbone, then search activation rate under fixed `N` and `C`, and finally use data reuse to make the comparison strict under finite unique data.*
+
+The paper therefore adopts a greedy strategy: first give MoE a strong optimized backbone, then sweep $r_a$ under fixed total parameters `N` and training compute `C`, and finally test the effect of data reuse. The Dense baseline is also not arbitrary; it uses the optimal FFN ratio strategy, so the intended comparison is between a well-tuned Dense model and a well-tuned MoE family.
+
+## 5. Step 1: Optimize the MoE architecture
+
+MoE has more structural degrees of freedom than Dense. A Dense model is largely determined by its aspect ratio and FFN ratio. An MoE model also has to choose the Dense/MoE layer mix, whether to use shared experts, the routing top-K, routed and shared expert sizes, total expert count, and global shape ratios.
+
+If these are not controlled, an activation-rate sweep can become meaningless. A bad result might simply mean the MoE backbone was bad.
+The architecture search narrows this design space into the backbone choices used for the later sweeps.
+
+*Table 1. Step 1 architecture-search conclusion table.*
+
+| Component | Conclusion used for the backbone |
+|---|---|
+| Layer arrangement | Use `1dense+SE`: one initial Dense layer, followed by MoE layers with shared experts. |
+| Gate normalization | Normalization reduces balance loss in the small-model ablations. |
+| Top-K routing | Avoid both `K = 1` and overly large `K`; use intermediate top-K choices whenever possible. |
+| Shape ratios | The search supports a reasonable range rather than a single universal value: `zeta` around `60-120` is reasonable, and `mu` around `20` is reasonable. |
+
+Step 1 is mainly about fairness. Before comparing MoE with Dense, the paper first gives MoE a strong backbone. After that, the activation-rate sweep asks a cleaner question: among well-constructed MoE models with the same total-parameter budget, which activation rate actually works best? Stabilizing `kappa_MoE` also helps the resource-equation analysis, but that is a secondary benefit. The detailed Step 1 experiments are in Appendix C.
+
+## 6. Step 2: Search the optimal activation rate
+
+<div style={{ display: "flex", gap: "18px", alignItems: "flex-start" }}>
+  <figure style={{ flex: "1", margin: "0" }}>
+    <img src="/assets/papers/moe-equal-resources-p1/reform_datas/figs_data_reuse/2B_keep_data_clean.png" alt="2B fixed data and fixed activation-rate analysis" style={{ width: "100%" }} />
+    <figcaption><em>Figure 3a. At 2B scale, adding tokens at fixed activation rate behaves differently from increasing compute by activating more parameters.</em></figcaption>
+  </figure>
+  <figure style={{ flex: "1", margin: "0" }}>
+    <img src="/assets/papers/moe-equal-resources-p1/reform_datas/figs_data_reuse/2B_keep_compute_clean.png" alt="2B fixed-compute activation-rate sweep" style={{ width: "100%" }} />
+    <figcaption><em>Figure 3b. Under fixed total parameters and training compute, the 2B MoE curve peaks around r<sub>a</sub> ≈ 20%, showing that MoE is not "the sparser, the better."</em></figcaption>
+  </figure>
+</div>
+
+**How to read Figure 3a.** The x-axis is total training compute, and the y-axis is BPC, where lower is better. The bubble size encodes consumed training tokens. Each dashed line holds the activation rate fixed and increases tokens; along these lines, more tokens reduce BPC steadily, almost in a log-log linear pattern, which matches the usual data-scaling intuition. The solid green line instead holds the data budget at `D = 114B` and changes $r_a$ from sparse to dense. This separates two ways of spending more compute: feed more tokens at fixed $r_a$, or activate more parameters at fixed data.
+
+**How to read Figure 3b.** The x-axis is $r_a$, and the y-axis is BPC. The blue curve is the 2B MoE family under the same total training compute. The bubble size again shows how many tokens each MoE consumes under that fixed-compute budget. The black horizontal line is the same-compute 2B Dense baseline, and the red dash-dot line is the stronger Dense baseline trained with more compute and more data.
+
+**Findings.** 
+
+1. At fixed $r_a$, BPC follows the expected data-scaling trend as tokens increase. But when training tokens and total parameters are fixed, and training compute increases only because the MoE activates more parameters, the BPC-compute relationship is no longer the same smooth scaling curve. This is the first signal that an optimal activation region can exist.
+2. Under fixed total parameters and fixed compute, MoE is not "the sparser, the better." The useful region is a moderate activation band, roughly 10%-30%, with the clearest 2B point near $r_a \approx 20\%$.
+
+## 7. Step 3: Data reuse, 7B validation, and downstream value
+
+### 7.1 Step3A: 3B activation-rate search under data reuse
+
+The 3B experiment is the first stress test for data reuse. It keeps total parameters and training compute roughly fixed, then compares two MoE families: one with unique tokens close to the Dense-1C data budget, and one with a larger unique-token budget. The y-axis is Delta BPC against the Dense-1C baseline, so lower is better; negative values mean the MoE beats Dense-1C.
+
+Figure 4 and Table 2 should be read together. The figure shows the full 3B activation-rate pattern, while the table focuses on the stricter `MoE-65B` setting: the cleaner test of whether MoE can stay competitive while using nearly the same amount of unique data as Dense-1C.
+
+<figure style={{ margin: "0" }}>
+  <img src="/assets/papers/moe-equal-resources-p1/reform_datas/figs_data_reuse/3B_data_reuse_degradation_viz.png" alt="3B activation-rate and data-reuse comparison" style={{ width: "100%" }} />
+  <figcaption><em>Figure 4. Step3A at 3B scale. The solid dark-green line is `MoE-65B`, where unique tokens are kept near the Dense-1C budget (`1.04x`, about 65B tokens). The dashed green line is `MoE-114B`, a looser setting with about `1.82x` Dense-1C unique tokens. The red dashed line is the strict target `Delta BPC = -0.004`, and the shaded band marks the annotated optimal region.</em></figcaption>
+</figure>
+
+*Table 2. 3B Step3A resource table. The selected MoE rows use nearly the same unique-token budget as Dense-1C, but consume more training tokens through reuse. BPC deltas are relative to Dense-1C, and lower is better.*
+
+<table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.86em", lineHeight: "1.25" }}>
+      <thead>
+        <tr>
+          <th style={{ textAlign: "left", borderBottom: "1px solid #d0d7de", padding: "4px" }}>Model</th>
+          <th style={{ textAlign: "right", borderBottom: "1px solid #d0d7de", padding: "4px" }}>C</th>
+          <th style={{ textAlign: "right", borderBottom: "1px solid #d0d7de", padding: "4px" }}>r<sub>a</sub></th>
+          <th style={{ textAlign: "right", borderBottom: "1px solid #d0d7de", padding: "4px" }}>FLOPs/tok.</th>
+          <th style={{ textAlign: "right", borderBottom: "1px solid #d0d7de", padding: "4px" }}>Train tok.</th>
+          <th style={{ textAlign: "right", borderBottom: "1px solid #d0d7de", padding: "4px" }}>Unique tok.</th>
+          <th style={{ textAlign: "right", borderBottom: "1px solid #d0d7de", padding: "4px" }}>Reuse</th>
+          <th style={{ textAlign: "right", borderBottom: "1px solid #d0d7de", padding: "4px" }}>ΔBPC</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td style={{ padding: "4px" }}>Dense-1C baseline</td><td style={{ textAlign: "right", padding: "4px" }}>1.00x</td><td style={{ textAlign: "right", padding: "4px" }}>100.0%</td><td style={{ textAlign: "right", padding: "4px" }}>100.0%</td><td style={{ textAlign: "right", padding: "4px" }}>1.00x</td><td style={{ textAlign: "right", padding: "4px" }}>1.00x</td><td style={{ textAlign: "right", padding: "4px" }}>1.00</td><td style={{ textAlign: "right", padding: "4px" }}>0.0000</td></tr>
+        <tr><td style={{ padding: "4px" }}>MoE-65B-Exp3</td><td style={{ textAlign: "right", padding: "4px" }}>1.00x</td><td style={{ textAlign: "right", padding: "4px" }}>14.70%</td><td style={{ textAlign: "right", padding: "4px" }}>16.7%</td><td style={{ textAlign: "right", padding: "4px" }}>5.99x</td><td style={{ textAlign: "right", padding: "4px" }}>1.04x</td><td style={{ textAlign: "right", padding: "4px" }}>5.77</td><td style={{ textAlign: "right", padding: "4px" }}>-0.0059</td></tr>
+        <tr><td style={{ padding: "4px" }}>MoE-65B-Exp4</td><td style={{ textAlign: "right", padding: "4px" }}>1.01x</td><td style={{ textAlign: "right", padding: "4px" }}>18.83%</td><td style={{ textAlign: "right", padding: "4px" }}>20.4%</td><td style={{ textAlign: "right", padding: "4px" }}>4.94x</td><td style={{ textAlign: "right", padding: "4px" }}>1.04x</td><td style={{ textAlign: "right", padding: "4px" }}>4.75</td><td style={{ textAlign: "right", padding: "4px" }}>-0.0076</td></tr>
+        <tr><td style={{ padding: "4px" }}>MoE-65B-Exp5</td><td style={{ textAlign: "right", padding: "4px" }}>0.99x</td><td style={{ textAlign: "right", padding: "4px" }}>27.12%</td><td style={{ textAlign: "right", padding: "4px" }}>27.6%</td><td style={{ textAlign: "right", padding: "4px" }}>3.56x</td><td style={{ textAlign: "right", padding: "4px" }}>1.04x</td><td style={{ textAlign: "right", padding: "4px" }}>3.43</td><td style={{ textAlign: "right", padding: "4px" }}>-0.0039</td></tr>
+        <tr><td style={{ padding: "4px" }}>MoE-65B-Exp6</td><td style={{ textAlign: "right", padding: "4px" }}>0.99x</td><td style={{ textAlign: "right", padding: "4px" }}>34.75%</td><td style={{ textAlign: "right", padding: "4px" }}>34.3%</td><td style={{ textAlign: "right", padding: "4px" }}>2.88x</td><td style={{ textAlign: "right", padding: "4px" }}>1.04x</td><td style={{ textAlign: "right", padding: "4px" }}>2.77</td><td style={{ textAlign: "right", padding: "4px" }}>-0.0047</td></tr>
+      </tbody>
+</table>
+
+The important reading is not that every reuse setting is equally good. It is that, even when unique tokens are almost fixed to the Dense-1C budget, a moderate activation rate can make MoE outperform Dense-1C under roughly equal total parameters and compute. The best row here is `MoE-65B-Exp4` at $r_a = 18.83\%$, with `Delta BPC = -0.0076`.
+
+### 7.2 Step3B: 7B data reuse, the sweet spot, and the resource table
+
+At 7B, the paper switches to a harder baseline. Since the MoE models already surpass Dense-1C under equal total parameters and compute, Figure 5a uses Dense-2C as the reference line. The y-axis is Delta BPC against Dense-2C; below zero means the MoE is better than a Dense model trained with roughly twice the compute and twice the unique tokens.
+
+<div style={{ display: "flex", gap: "18px", alignItems: "flex-start", flexWrap: "wrap" }}>
+  <figure style={{ flex: "1 1 360px", margin: "0" }}>
+    <img src="/assets/papers/moe-equal-resources-p1/reform_datas/figs_data_reuse/7B_data_reuse_degradation_viz.png" alt="7B activation-rate and data-reuse comparison" style={{ width: "100%" }} />
+    <figcaption><em>Figure 5a. Step3B at 7B scale. The dark-green solid line is MoE without data reuse, the green dashed line uses two epochs, and the orange dash-dot line is the strict 68B setting. The red dashed horizontal line is Dense-2C. The shaded band marks the annotated optimal region.</em></figcaption>
+  </figure>
+  <figure style={{ flex: "1 1 360px", margin: "0" }}>
+    <img src="/assets/papers/moe-equal-resources-p1/reform_datas/figs_data_reuse/7B_data_reuse_impact.png" alt="Impact of data reuse strategy on 7B MoE performance" style={{ width: "100%" }} />
+    <figcaption><em>Figure 5b. Data reuse impact for the same 7B experiments. Each line fixes an activation rate and moves along the x-axis as reuse epochs increase. The shaded region marks the low-degradation reuse regime.</em></figcaption>
+  </figure>
+</div>
+
+Together, Figures 5a and 5b show the same 7B trade-off from two angles. In Figure 5a, MoE without reuse can beat Dense-2C across a broad midrange but needs many more unique tokens; with two epochs, the same midrange still beats Dense-2C while using much less unique data; under the strict 68B cap, most activation rates fall short, but $r_a = 20.07\%$ still matches Dense-2C. Figure 5b then makes the reuse axis explicit: moderate reuse can preserve or improve MoE performance, while excessive reuse degrades sharply, especially when the activation rate is too sparse.
+
+*Table 3. 7B Step3B resource table corresponding to Figures 5a and 5b. Deltas are relative to Dense-2C; lower BPC is better. The row to notice is `MoE-68B` at $r_a = 20.07\%$: same total-parameter scale, 68B unique tokens, `4.65` reuse epochs, only `21.5%` per-token FLOPs, and BPC `0.4590`, comparable to Dense-2C at `0.4594`. This means that, with the right activation rate, MoE can still trade more consumed tokens for activation-rate-level per-token FLOPs even when unique tokens are tightly capped.*
+
+| Model / strategy | $r_a$ | Unique tokens | Reuse epochs | FLOPs/token vs Dense | BPC | Delta BPC vs Dense-2C |
+|---|---:|---:|---:|---:|---:|---:|
+| Dense-1C | 100.00% | 68B | 1.00 | 100.0% | 0.4736 | +0.0142 |
+| Dense-2C | 100.00% | 130B | 1.00 | 100.0% | 0.4594 | 0.0000 |
+| MoE-Unique | 11.19% | 511B | 1.00 | 13.3% | 0.4624 | +0.0030 |
+| MoE-Unique | 13.41% | 443B | 1.00 | 15.3% | 0.4580 | -0.0014 |
+| MoE-Unique | 15.63% | 390B | 1.00 | 17.4% | 0.4571 | -0.0023 |
+| MoE-Unique | 20.07% | 316B | 1.00 | 21.5% | 0.4543 | -0.0051 |
+| MoE-Unique | 26.18% | 250B | 1.00 | 27.2% | 0.4580 | -0.0014 |
+| MoE-2Ep | 11.19% | 256B | 2.00 | 13.3% | 0.4591 | -0.0003 |
+| MoE-2Ep | 13.41% | 221B | 2.00 | 15.3% | 0.4557 | -0.0037 |
+| MoE-2Ep | 15.63% | 195B | 2.00 | 17.4% | 0.4550 | -0.0044 |
+| MoE-2Ep | 20.07% | 158B | 2.00 | 21.5% | 0.4549 | -0.0045 |
+| MoE-2Ep | 26.18% | 125B | 2.00 | 27.2% | 0.4570 | -0.0024 |
+| MoE-68B | 11.19% | 68B | 7.52 | 13.3% | 0.4656 | +0.0062 |
+| MoE-68B | 13.41% | 68B | 6.51 | 15.3% | 0.4618 | +0.0024 |
+| MoE-68B | 15.63% | 68B | 5.74 | 17.4% | 0.4601 | +0.0007 |
+| MoE-68B | 20.07% | 68B | 4.65 | 21.5% | 0.4590 | -0.0004 |
+| MoE-68B | 26.18% | 68B | 3.67 | 27.2% | 0.4597 | +0.0003 |
+
+### 7.3 Step3C: Downstream evaluation after SFT
+
+The downstream section is valuable because it checks whether the activation-rate story is only a pretraining BPC artifact. The paper evaluates 7B pre-trained and SFT-ed models on 29 benchmarks, including reasoning, knowledge, Math, and Code categories. The absolute Math/Code scores should be read together with the data-recipe discussion in Appendix E.
+
+<div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "14px", alignItems: "start" }}>
+  <figure style={{ margin: "0" }}>
+    <img src="/assets/papers/moe-equal-resources-p1/blog_assets/pt_avg.png" alt="Pretrain average downstream accuracy" style={{ width: "100%" }} />
+    <figcaption><em>Figure 6a. Pretrain average accuracy.</em></figcaption>
+  </figure>
+  <figure style={{ margin: "0" }}>
+    <img src="/assets/papers/moe-equal-resources-p1/blog_assets/sft_avg.png" alt="SFT average downstream accuracy" style={{ width: "100%" }} />
+    <figcaption><em>Figure 6b. SFT average accuracy.</em></figcaption>
+  </figure>
+  <figure style={{ margin: "0" }}>
+    <img src="/assets/papers/moe-equal-resources-p1/blog_assets/sft_knowledge.png" alt="SFT knowledge downstream accuracy" style={{ width: "100%" }} />
+    <figcaption><em>Figure 6c. SFT knowledge accuracy.</em></figcaption>
+  </figure>
+  <figure style={{ margin: "0" }}>
+    <img src="/assets/papers/moe-equal-resources-p1/blog_assets/sft_reasoning.png" alt="SFT reasoning downstream accuracy" style={{ width: "100%" }} />
+    <figcaption><em>Figure 6d. SFT reasoning accuracy.</em></figcaption>
+  </figure>
+</div>
+
+*Figure 6. Step3C downstream evaluation for 7B aligned models. The blue solid curves use unique data, the cyan dashed curves use strict data reuse, and the red dash-dot line is the Dense-2C baseline. Unlike BPC plots, higher accuracy is better.*
+
+The result is not just "MoE wins on validation loss." At $r_a \approx 20\%$, the MoE models remain strong after SFT, and the unique-data MoE is the clearest winner against the Dense comparison. The strict-reuse MoE remains competitive overall and is especially strong on reasoning, but the downstream curves expose an important capability split: data reuse has relatively little impact on reasoning, while knowledge-oriented benchmarks degrade more when unique tokens are reduced. In other words, for MoE, repeated data can strengthen reasoning, but it cannot fully replace missing world knowledge.
+
+That makes Step3C more than a secondary check. It says the activation-rate sweet spot is relevant to aligned models too, and it clarifies where data reuse is most tolerable: more forgiving for reasoning, more dangerous for knowledge coverage.
+
+## 8. Practical recipe and final takeaway
+
+For teams building SOTA MoE LLMs, the guidance is sharper than "make it sparse."
+
+1. **MoE can match Dense with the same total parameters and training compute.** Under the same total parameter count and the same training compute, the optimized MoE can match or surpass Dense. In these experiments, this means the first-order resource is training compute: once compute is matched, introducing sparsity does not create an inherent architectural disadvantage.
+2. **The fundamental trade-off.** In that regime, MoE trades higher consumed-token demand for much lower per-token FLOPs. At $r_a \approx 20\%$, the resource equation says to budget for roughly $5\times$ consumed tokens; the 7B sweet-spot row uses only `21.5%` per-token FLOPs, roughly a `5x` inference-side FLOPs reduction at the same total-parameter footprint.
+3. **Scale-aware optimal sparsity.** "Sparser is better" is the wrong instinct. Across the 2B, 3B, and 7B sweeps in this paper, the useful activation-rate region is broad but not arbitrary: roughly 10%-30%. As model size grows, this optimal activation-rate region may expand or shift toward sparser MoEs.
+4. **Data reuse works, within limits.** When unique data is limited, multi-epoch reuse can preserve the MoE advantage. In the 7B sweep, reuse within the moderate window remains useful; reasoning is relatively tolerant of repeated data, while knowledge coverage is more sensitive to unique tokens.
+
+For example, suppose we want to train a 1T-total-parameter MoE model. A 1T Dense model would need about 20T tokens under the Chinchilla rule of thumb. If the MoE activates 100B parameters, or a 10% activation rate, then targeting Dense-level performance means budgeting for about 200T consumed tokens. If unique data is not enough, moderate multi-epoch reuse can help.
+
+For teams training frontier models, this is the practical lesson: MoE scaling is not just a vague "sparse is efficient" story. It becomes a resource recipe: choose the right activation rate, use a more aggressive data scaling strategy, and when unique tokens are not enough, use data reuse moderately, for example within about three epochs.
+
+---
+
+<nav className="post-footer-nav" data-import-footer-nav="true" aria-label="Post navigation">
+  <a className="post-footer-nav-link next" href="/en/moe-equal-resources-p2/">
+    <span>Next</span>
+    <strong>Appendix (P2)</strong>
+  </a>
+</nav>

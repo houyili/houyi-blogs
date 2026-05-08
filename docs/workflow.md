@@ -7,7 +7,7 @@
 `houyi-blogs` is the independent AI/AGI blog repository and deploys to:
 
 ```text
-https://houyili.github.io/houyi-blogs/
+https://houyi.blog/
 ```
 
 ## Draft-To-Publish Flow
@@ -61,7 +61,7 @@ The import tool should ask for missing metadata interactively, then copy the pos
 For the current ICLR 2026 Oral post:
 
 ```bash
-npm run import:draft -- /Users/jyxc-dz-0100301/Documents/项目文档/paper/iclr2026/blog.md --config scripts/fixtures/moe-equal-resources.import.yaml
+npm run import:draft -- /Users/jyxc-dz-0100301/Documents/项目文档/paper/iclr2026/blog_body.md --config scripts/fixtures/moe-equal-resources-p1.import.yaml
 ```
 
 The import step is deterministic and program based. Codex may help diagnose failures or suggest metadata, but it should not rewrite the article body during import. For future paper repos, prefer a sidecar `blog.import.yaml` beside the source draft so metadata is filled once and reused across imports.
@@ -69,7 +69,7 @@ The import step is deterministic and program based. Codex may help diagnose fail
 After import:
 
 ```bash
-npm run verify:import -- --slug moe-equal-resources
+npm run verify:import -- --slug moe-equal-resources-p1
 npm run check
 npm run build
 ```

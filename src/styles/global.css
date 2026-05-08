@@ -171,7 +171,7 @@ a {
 .post-card h2 {
   max-width: 770px;
   margin: 10px 0 0;
-  font-size: clamp(24px, 2.35vw, 32px);
+  font-size: clamp(22px, 2vw, 28px);
   line-height: 1.18;
   letter-spacing: 0;
 }
@@ -284,6 +284,11 @@ a {
   border-bottom: 1px solid var(--line);
 }
 
+.pinned-list a {
+  display: grid;
+  gap: 3px;
+}
+
 .pinned-list li:last-child,
 .topic-list li:last-child {
   border-bottom: 0;
@@ -327,6 +332,50 @@ a {
   color: #7a8797;
   background: rgba(255, 255, 255, 0.46);
   font-size: 13px;
+}
+
+.anchor-target {
+  scroll-margin-top: 24px;
+}
+
+.collection-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  padding-top: 24px;
+}
+
+.collection-section {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.56);
+  padding: 18px;
+}
+
+.collection-section h2 {
+  margin: 0 0 10px;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.collection-section p,
+.collection-section ul {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.collection-section ul {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.collection-section a {
+  color: var(--accent-strong);
+  font-weight: 680;
 }
 
 .about-page {
@@ -493,7 +542,7 @@ a {
 .post-header h1 {
   max-width: 900px;
   margin: 0;
-  font-size: clamp(30px, 3.7vw, 46px);
+  font-size: clamp(28px, 3vw, 38px);
   line-height: 1.06;
   letter-spacing: 0;
   overflow-wrap: anywhere;
@@ -639,6 +688,44 @@ a {
   padding: 8px 0;
 }
 
+.post-footer-nav {
+  display: grid;
+  gap: 12px;
+  margin-top: 44px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.post-footer-nav-link {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 14px 16px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.post-footer-nav-link:hover,
+.post-footer-nav-link:focus-visible {
+  border-color: #9ceadf;
+  background: rgba(216, 251, 242, 0.55);
+  outline: none;
+}
+
+.post-footer-nav-link span {
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.post-footer-nav-link strong {
+  font-size: 17px;
+  line-height: 1.35;
+}
+
 @media (max-width: 1100px) {
   .post-shell {
     display: block;
@@ -665,7 +752,8 @@ a {
 
   .topbar,
   .hero,
-  .flow-layout {
+  .flow-layout,
+  .collection-sections {
     grid-template-columns: 1fr;
   }
 
@@ -722,7 +810,7 @@ a {
   }
 
   .post-card h2 {
-    font-size: 30px;
+    font-size: 26px;
   }
 
   .post-page {
@@ -730,7 +818,7 @@ a {
   }
 
   .post-header h1 {
-    font-size: 28px;
+    font-size: 26px;
   }
 
   .post-content {
@@ -762,10 +850,10 @@ a {
   }
 
   .post-card h2 {
-    font-size: 26px;
+    font-size: 24px;
   }
 
   .post-header h1 {
-    font-size: 26px;
+    font-size: 24px;
   }
 }

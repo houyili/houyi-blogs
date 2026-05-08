@@ -41,7 +41,7 @@ sources:
 Current command for the ICLR 2026 Oral post:
 
 ```bash
-npm run import:draft -- /Users/jyxc-dz-0100301/Documents/项目文档/paper/iclr2026/blog.md --config scripts/fixtures/moe-equal-resources.import.yaml
+npm run import:draft -- /Users/jyxc-dz-0100301/Documents/项目文档/paper/iclr2026/blog_body.md --config scripts/fixtures/moe-equal-resources-p1.import.yaml
 ```
 
 If no `--config` is passed, the importer looks for `<basename>.import.yaml` beside the source draft. If it does not exist, it creates a template and exits so the metadata can be filled once.
@@ -52,7 +52,7 @@ The script keeps Markdown, raw HTML blocks, tables, figures, captions, appendice
 
 - Split English and Chinese sections.
 - Promote source `###` headings to page-local `##` headings.
-- Rewrite local asset references to `/houyi-blogs/assets/papers/<slug>/...`.
+- Rewrite local asset references to `/assets/papers/<slug>/...`.
 - Copy referenced `blog_assets/`, `reform_datas/`, and `references/` files.
 - Normalize raw HTML for MDX parsing, for example `<img>` self-closing and `style="..."` to equivalent JSX `style={{ ... }}` objects.
 
@@ -72,8 +72,8 @@ The importer exits nonzero if an asset is missing, a generated post leaks a loca
 ### Verification
 
 ```bash
-npm run verify:import -- --slug moe-equal-resources
-npm run verify:visual -- --slug moe-equal-resources
+npm run verify:import -- --slug moe-equal-resources-p1
+npm run verify:visual -- --slug moe-equal-resources-p1
 ```
 
 `verify:visual` writes screenshots and a VLM review prompt under `tmp/visual-check/<slug>/`.

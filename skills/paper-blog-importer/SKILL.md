@@ -1,53 +1,62 @@
 ---
 name: paper-blog-importer
-description: Program-based workflow for importing paper/project repository Markdown drafts into the Houyi Blog Astro site with bilingual posts, asset migration, KaTeX math, raw HTML layout preservation, import reports, and VLM visual review. Use when Codex needs to turn blog.md, blog.en.md/blog.zh.md, or paper repo Markdown into published Houyi Blog article pages without hand-copying or rewriting prose.
+description: Use when Codex needs to import paper/project Markdown drafts into the Houyi Blog Astro site as bilingual posts, including long-paper P1/P2 splits, asset/download migration, KaTeX math, raw HTML layout preservation, import reports, VLM review, or reimporting without hand-copying prose.
 ---
 
 # Paper Blog Importer
 
 ## Core Rule
 
-Use the repository importer as the source of truth. Do not rewrite article prose, manually rebuild HTML, or hand-copy assets. LLM context is allowed only for metadata assistance, failure diagnosis, and suggestions for importer/CSS fixes.
+Use the repository importer as the source of truth. Do not rewrite article prose, manually rebuild HTML, or hand-copy assets. LLM context is allowed only for metadata assistance, failure diagnosis, source sanity checks, and suggestions for importer/CSS fixes.
 
-## Workflow
+## Runbook
 
-1. Work in the `houyi-blogs` repository.
-2. Inspect the paper repo draft format:
-   - single bilingual file: `blog.md` with `## I. English Draft` and `## II. 中文稿`
-   - paired bilingual files: `blog.en.md` and `blog.zh.md`
-3. Create or update the sidecar YAML near the draft, or pass an explicit config with `--config`.
-4. Import with:
+1. Work in the `houyi-blogs` repository and inspect the source draft shape:
+   - single bilingual: `blog.md`, `blog_body.md`, or `blog_appendix.md` with language markers
+   - paired bilingual: `blog.en.md` + `blog.zh.md`
+2. Read `references/import-contract.md` before creating or changing sidecar YAML.
+3. Create/update the sidecar YAML. Put all metadata there: `slug`, titles, descriptions, tags, pinned state, cover image, asset roots, `hide_description_in_header`, and optional `footer_nav`.
+4. Sanity-check source sections before import:
+   - English section has English subtitle/download card text.
+   - Chinese section has Chinese subtitle/download card text.
+   - Download links and raw HTML `<a href>` point to local files or intended external URLs.
+   - Tags/categories match the current publication plan.
+5. Import from source, never by editing generated MDX:
 
 ```bash
-npm run import:draft -- /path/to/blog.md
+npm run import:draft -- /path/to/blog.md --config scripts/fixtures/<slug>.import.yaml
 ```
 
-or:
-
-```bash
-npm run import:draft -- --config /path/to/blog.import.yaml
-```
-
-5. Verify content:
+6. Verify each slug:
 
 ```bash
 npm run verify:import -- --slug <slug>
-npm run check
-npm run build
-```
-
-6. Generate visual review artifacts:
-
-```bash
+ASTRO_TELEMETRY_DISABLED=1 npm run check
+ASTRO_TELEMETRY_DISABLED=1 npm run build
 npm run verify:visual -- --slug <slug>
 ```
 
-7. If verification fails, fix importer rules, sidecar metadata, or site CSS. Reimport instead of editing generated article bodies by hand.
+7. Inspect build output for regressions:
+   - expected routes exist for `/en/<slug>/` and `/zh/<slug>/`
+   - removed old slugs are absent from `dist/`
+   - homepage cards, pinned rail, topics, and search placeholder are generated from the current posts
+   - no stale placeholder posts remain
+8. If anything fails, fix importer rules, sidecar metadata, source draft, or site CSS, then rerun import. Do not patch generated article bodies.
+
+## Long Paper Split Pattern
+
+For a long paper, prefer separate slugs such as `<paper>-p1` and `<paper>-p2`.
+
+- P1 body: usually `pinned: true`, category `Paper Explainer · P1` / `论文解读 · P1`.
+- P2 appendix: usually `pinned: false`, category `Appendix · P2` / `附录 · P2`.
+- Keep shared title/subtitle/numbering in source.
+- Add P1 -> P2 and P2 -> P1 links through `footer_nav`, not by editing generated MDX.
+- Run import/verify/build/visual checks for both slugs.
 
 ## References
 
-- Read `references/import-contract.md` when creating or editing sidecar YAML, importer behavior, or content verification rules.
-- Read `references/vlm-visual-check.md` when generating screenshots or asking a VLM to review visual preservation.
+- `references/import-contract.md`: sidecar YAML schema, split markers, asset/download behavior, and allowed mechanical transformations.
+- `references/vlm-visual-check.md`: screenshot package and VLM review checklist.
 
 ## Expected Outputs
 
@@ -56,4 +65,4 @@ npm run verify:visual -- --slug <slug>
 - `public/assets/papers/<slug>/...`
 - `public/assets/papers/<slug>/import-report.json`
 
-The reimport cost for minor prose changes should remain one import command plus build verification.
+Minor prose edits should cost one reimport command plus verification, not a manual migration.
