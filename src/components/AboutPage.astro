@@ -7,6 +7,8 @@ const allCopy = {
     title: "About Houyi Li",
     lead: "I am Houyi Li. This blog is driven by my curiosity and sense of mission around AGI. Here I explain my papers, record my learning notes on AGI, and publish my open-source projects.",
     body: "I hope to use this blog to record the growth and deepening of my understanding of AGI, and to discuss and exchange ideas with more AGI researchers here.",
+    contact: "Contact",
+    email: "lihouyi2013@hotmail.com",
     homepage: "Personal homepage",
     back: "Back to AGI Flow"
   },
@@ -14,6 +16,8 @@ const allCopy = {
     title: "关于 Houyi Li",
     lead: "我是 Houyi Li，这个博客由我对 AGI 的好奇心和使命感驱动。我会在这里解释自己的论文，会记录我对AGI的学习笔记，也会发布自己的开源项目。",
     body: "希望利用这个博客记录我对AGI认知成长和深化的过程，也希望能和更多的AGI研究员在此讨论和交流。",
+    contact: "联系方式",
+    email: "lihouyi2013@hotmail.com",
     homepage: "个人主页",
     back: "返回 AGI Flow"
   }
@@ -21,6 +25,8 @@ const allCopy = {
   title: string;
   lead: string;
   body: string;
+  contact: string;
+  email: string;
   homepage: string;
   back: string;
 }>;
@@ -37,6 +43,7 @@ const base = import.meta.env.BASE_URL.endsWith("/")
   <div class="about-copy">
     <p>{copy.lead}</p>
     <p>{copy.body}</p>
+    <p>{copy.contact}: <a href={`mailto:${copy.email}`}>{copy.email}</a></p>
   </div>
   <div class="about-actions">
     <a class="about-link" href="https://houyili.github.io/">{copy.homepage}</a>
