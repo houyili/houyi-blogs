@@ -48,17 +48,20 @@ npm run verify:visual -- --slug <slug>
 
 ## Long Paper Split Pattern
 
-For a long paper, prefer separate slugs such as `<paper>-p1` and `<paper>-p2`.
+For a long paper, prefer separate slugs such as `<paper>-p1` and `<paper>-p2`. Read `references/split-body-appendix.md` when the user wants a main-body post plus an appendix post.
 
 - P1 body: usually `pinned: true`, category `Paper Explainer · P1` / `论文解读 · P1`.
 - P2 appendix: usually `pinned: false`, category `Appendix · P2` / `附录 · P2`.
-- Keep shared title/subtitle/numbering in source.
+- Keep shared title/subtitle/tags/venue/project id across P1 and P2 unless the user asks otherwise.
+- Preserve source numbering across the pair; never renumber figures, tables, formulas, appendices, or references.
 - Add P1 -> P2 and P2 -> P1 links through `footer_nav`, not by editing generated MDX.
-- Run import/verify/build/visual checks for both slugs.
+- Remove old single-post artifacts and stale placeholders in the same import change when replacing a previous one-piece article.
+- Run import/verify/build/visual checks for both slugs, then inspect homepage ordering, pinned rail, topics, and search placeholder.
 
 ## References
 
 - `references/import-contract.md`: sidecar YAML schema, split markers, asset/download behavior, and allowed mechanical transformations.
+- `references/split-body-appendix.md`: reusable playbook for splitting one long paper blog into P1 body and P2 appendix.
 - `references/vlm-visual-check.md`: screenshot package and VLM review checklist.
 
 ## Expected Outputs

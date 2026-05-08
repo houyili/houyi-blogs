@@ -103,11 +103,15 @@ Do not rewrite prose, reorder figures, rebuild tables, collapse appendices, renu
 
 ## Source Sanity Checks Before Import
 
+For a body/appendix split, read `split-body-appendix.md` before editing configs.
+
 - English source section should not start with a Chinese subtitle unless intentionally bilingual.
 - Chinese source section should not start with an English-only subtitle unless intentionally bilingual.
 - Paper/slides/poster links should be present in both language sections when the publication plan includes download cards.
 - P1/P2 posts should share title/subtitle and tags when they are parts of the same article.
 - P1 should link to P2; P2 should link back to P1 through config-driven `footer_nav`.
+- Continuous numbering across P1/P2 is source-owned. Verify counts and visible numbering, but do not reset numbering per page.
+- If the old article was one slug, confirm old generated files, asset directories, fixture config, and placeholder posts were intentionally removed.
 
 ## Content Verification
 

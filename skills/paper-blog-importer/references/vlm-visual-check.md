@@ -29,6 +29,7 @@ Ask it to check:
 - paper/slides/poster download cards visible and clickable-looking
 - appendix/reference content missing
 - P1/P2 previous/next footer cards present
+- P1 and P2 read as one split article: shared title/subtitle/tags, continuous numbering, and no duplicated/missing intro/download blocks beyond what source contains
 - obvious horizontal overflow or unreadable table/formula
 - title sizes and right-side TOC not visually overwhelming the content
 

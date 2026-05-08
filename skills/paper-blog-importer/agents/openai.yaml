@@ -1,4 +1,4 @@
 interface:
   display_name: "Paper Blog Importer"
   short_description: "Import paper Markdown into bilingual Houyi Blog posts"
-  default_prompt: "Use $paper-blog-importer to import or reimport paper repo Markdown into Houyi Blog with programmatic content checks, asset migration, and visual review."
+  default_prompt: "Use $paper-blog-importer to import or reimport paper repo Markdown into Houyi Blog, including P1/P2 body-appendix splits, programmatic content checks, asset migration, and visual review."
