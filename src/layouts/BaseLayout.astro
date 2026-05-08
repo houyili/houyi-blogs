@@ -82,6 +82,7 @@ const resolvedSwitchHref = switchHref ?? `${base}${otherLang}/${currentPath}`;
           <a href={`${currentBase}about/`} aria-current={current === "about" ? "page" : undefined}>{nav.about}</a>
           <a href={`${currentBase}papers/`} aria-current={current === "papers" ? "page" : undefined}>{nav.papers}</a>
           <a href={`${currentBase}open-source/`} aria-current={current === "open-source" ? "page" : undefined}>{nav.openSource}</a>
+          <a href={`${currentBase}reading-notes/`} aria-current={current === "reading-notes" ? "page" : undefined}>{nav.readingNotes}</a>
         </nav>
       </header>
       <slot />

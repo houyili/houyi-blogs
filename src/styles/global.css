@@ -48,9 +48,9 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 18px;
   margin-bottom: 0;
-  padding: 12px 0;
+  padding: 12px 16px;
   background: rgba(246, 247, 251, 0.86);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(16px);
@@ -86,7 +86,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 18px;
+  gap: 14px;
   color: var(--muted);
   font-size: 14px;
   font-weight: 520;
