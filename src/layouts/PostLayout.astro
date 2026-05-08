@@ -1,5 +1,6 @@
 ---
 import BaseLayout from "./BaseLayout.astro";
+import GiscusComments from "../components/GiscusComments.astro";
 
 type Heading = {
   depth: number;
@@ -66,6 +67,8 @@ const tocHeadings = headings
       <div class="post-content" data-pagefind-body>
         <slot />
       </div>
+
+      <GiscusComments lang={lang} />
     </article>
 
     {tocHeadings.length > 0 && (
