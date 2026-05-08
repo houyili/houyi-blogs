@@ -528,6 +528,13 @@ a {
   outline: none;
 }
 
+.post-toc-card a.is-active {
+  background: rgba(216, 251, 242, 0.82);
+  color: var(--accent-strong);
+  font-weight: 760;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
 .post-toc-card a.depth-3 {
   padding-left: 20px;
   font-size: 12px;

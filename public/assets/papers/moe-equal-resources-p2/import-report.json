@@ -11,8 +11,8 @@
     "chinese_segment": "557db031a67a66022ba363964e80de2d567eb010c187d24eea3d8ef92b8a4ecb",
     "normalized_source_text": "31c784be64737cec87ff100f77f7d2038b622ab0750345e3f17a13b7bc55263b",
     "normalized_generated_text": "31c784be64737cec87ff100f77f7d2038b622ab0750345e3f17a13b7bc55263b",
-    "english_output": "706cff48ff85ba0abbb6cbd125d7cf71740d062b5abd9519dda748c63339cd42",
-    "chinese_output": "08f3be14a1e02dd36117751ae4f9b6885454ecb74624e05f0babe9ec444a7502"
+    "english_output": "e2791a675da87bc357c618e45bbb60df5e75e00264128ea4b93850d26e6c5ac1",
+    "chinese_output": "8992316caefc5f7901d9e983ea126aae2211e595344db7ebc27db829ccfe767d"
   },
   "outputs": {
     "en": "src/content/post/en/moe-equal-resources-p2.mdx",

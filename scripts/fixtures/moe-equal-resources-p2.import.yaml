@@ -15,7 +15,7 @@ sections:
   zh_marker: '^## II-A\. 中文附录\s*$'
 posts:
   en:
-    title: Can We Train an MoE Model with the Same Total Parameters and Performance as Dense?
+    title: "Appendix: Can We Train an MoE Model with the Same Total Parameters and Performance as Dense?"
     description: "An ICLR 2026 Oral paper explainer: MoE needs a more aggressive data scaling strategy."
     category: Appendix · P2
     read_time: 25 min read
@@ -26,8 +26,9 @@ posts:
       - ICLR 2026 oral
       - Data Scaling
       - Data Reuse
+      - APPENDIX
   zh:
-    title: 能否训出和 Dense 总参相同、性能相同的 MoE 模型？
+    title: "附录：能否训出和 Dense 总参相同、性能相同的 MoE 模型？"
     description: ICLR 2026 Oral Paper的解读：MoE 需要更加激进的 Data Scaling 策略
     category: 附录 · P2
     read_time: 25 分钟
@@ -38,6 +39,7 @@ posts:
       - ICLR 2026 oral
       - Data Scaling
       - Data Reuse
+      - APPENDIX
 footer_nav:
   en:
     previous:

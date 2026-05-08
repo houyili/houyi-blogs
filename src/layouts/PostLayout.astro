@@ -74,7 +74,7 @@ const tocHeadings = headings
           <h2>{tocLabel}</h2>
           <nav>
             {tocHeadings.map((heading) => (
-              <a class:list={[`depth-${heading.depth}`]} href={`#${heading.slug}`}>{heading.text}</a>
+              <a class:list={[`depth-${heading.depth}`]} href={`#${heading.slug}`} data-toc-link>{heading.text}</a>
             ))}
           </nav>
         </div>
@@ -82,3 +82,53 @@ const tocHeadings = headings
     )}
   </div>
 </BaseLayout>
+
+<script>
+  const tocLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>('.post-toc-card a[data-toc-link]'));
+  const tocHeadings = tocLinks
+    .map((link) => {
+      const hash = link.getAttribute('href')?.slice(1);
+      return hash ? document.getElementById(decodeURIComponent(hash)) : null;
+    })
+    .filter((heading): heading is HTMLElement => heading instanceof HTMLElement);
+
+  let ticking = false;
+
+  function setActiveTocLink() {
+    ticking = false;
+    if (!tocHeadings.length) return;
+
+    const offset = 130;
+    let activeId = tocHeadings[0].id;
+
+    for (const heading of tocHeadings) {
+      if (heading.getBoundingClientRect().top <= offset) {
+        activeId = heading.id;
+      } else {
+        break;
+      }
+    }
+
+    for (const link of tocLinks) {
+      const linkId = decodeURIComponent(link.getAttribute('href')?.slice(1) ?? '');
+      const isActive = linkId === activeId;
+      link.classList.toggle('is-active', isActive);
+      if (isActive) {
+        link.setAttribute('aria-current', 'true');
+      } else {
+        link.removeAttribute('aria-current');
+      }
+    }
+  }
+
+  function requestTocUpdate() {
+    if (ticking) return;
+    ticking = true;
+    window.requestAnimationFrame(setActiveTocLink);
+  }
+
+  setActiveTocLink();
+  window.addEventListener('scroll', requestTocUpdate, { passive: true });
+  window.addEventListener('resize', requestTocUpdate);
+  window.addEventListener('hashchange', requestTocUpdate);
+</script>
