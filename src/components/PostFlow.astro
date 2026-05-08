@@ -2,6 +2,7 @@
 import { getCollection } from "astro:content";
 
 type Lang = "en" | "zh";
+type Flow = "all" | "papers" | "open-source" | "reading-notes";
 type FlowCopy = {
   heading: string;
   subheading: string;
@@ -10,19 +11,25 @@ type FlowCopy = {
   topics: string;
   allResearch: string;
   loadMore: string;
-  openSource: string;
-  readingNotes: string;
-  noOpenSource: string;
-  noReadingNotes: string;
+  emptyTitle: string;
+  emptyText: string;
+  noPinned: string;
+  noTopics: string;
 };
 
-const { lang = "en" } = Astro.props as { lang?: Lang };
+const { lang = "en", flow = "all" } = Astro.props as { lang?: Lang; flow?: Flow };
 const allPosts = await getCollection("post", ({ data }) => data.lang === lang && !data.draft);
-const posts = allPosts.sort((a, b) => {
+const sortedPosts = allPosts.sort((a, b) => {
   if (a.data.pinned !== b.data.pinned) return a.data.pinned ? -1 : 1;
   const dateDiff = b.data.published.valueOf() - a.data.published.valueOf();
   if (dateDiff !== 0) return dateDiff;
   return a.data.post_slug.localeCompare(b.data.post_slug);
+});
+const posts = sortedPosts.filter((post) => {
+  if (flow === "all") return true;
+  if (flow === "papers") return post.data.paper;
+  if (flow === "open-source") return !post.data.paper && Boolean(post.data.project);
+  return !post.data.paper && !post.data.project;
 });
 const topicCounts = new Map<string, number>();
 const topicOrder: string[] = [];
@@ -38,45 +45,89 @@ const topicEntries = topicOrder
 const topics = topicEntries.map(([topic]) => topic);
 const searchExamples = topics.slice(0, 4);
 const searchPlaceholder = lang === "en"
-  ? `Search ${searchExamples.join(", ")}...`
-  : `搜索 ${searchExamples.join("、")}...`;
+  ? searchExamples.length > 0 ? `Search ${searchExamples.join(", ")}...` : "Search this flow..."
+  : searchExamples.length > 0 ? `搜索 ${searchExamples.join("、")}...` : "搜索当前列表...";
 const pinnedPosts = posts.filter((post) => post.data.pinned);
-const openSourcePosts = posts.filter((post) => !post.data.paper && Boolean(post.data.project));
-const readingNotePosts = posts.filter((post) => !post.data.paper && !post.data.project);
 const base = import.meta.env.BASE_URL.endsWith("/")
   ? import.meta.env.BASE_URL.slice(0, -1)
   : import.meta.env.BASE_URL;
 
 const allCopy = {
   en: {
-    heading: "AGI research learning notes and work explainers.",
-    subheading: "Driven by AGI curiosity and mission: my papers, projects, and learning notes.",
+    all: {
+      heading: "AGI research learning notes and work explainers.",
+      subheading: "Driven by AGI curiosity and mission: my papers, projects, and learning notes.",
+      emptyTitle: "No research notes yet.",
+      emptyText: "New AGI notes will appear here once published.",
+      allResearch: "All Research",
+    },
+    papers: {
+      heading: "My papers.",
+      subheading: "Paper explainers and research notes for my own work.",
+      emptyTitle: "No paper explainers yet.",
+      emptyText: "Paper explainers will appear here once published.",
+      allResearch: "All Papers",
+    },
+    "open-source": {
+      heading: "Open-source launches.",
+      subheading: "Release notes and technical writeups for my open-source AGI projects.",
+      emptyTitle: "No open-source launches yet.",
+      emptyText: "Open-source project posts will appear here once published.",
+      allResearch: "All Projects",
+    },
+    "reading-notes": {
+      heading: "Reading notes.",
+      subheading: "Technical readings from papers, systems, and ideas that sharpen my AGI path.",
+      emptyTitle: "No reading notes yet.",
+      emptyText: "Reading notes will appear here once published.",
+      allResearch: "All Notes",
+    },
     search: "Search",
     pinned: "Pinned",
     topics: "Topics",
-    allResearch: "All Research",
     loadMore: "Load more research notes",
-    openSource: "Open Source",
-    readingNotes: "Reading Notes",
-    noOpenSource: "No open-source launches yet.",
-    noReadingNotes: "No reading notes yet.",
+    noPinned: "No pinned posts in this flow.",
+    noTopics: "No topics yet.",
   },
   zh: {
-    heading: "AGI 研究学习笔记与工作解读",
-    subheading: "由对 AGI 的好奇心和使命感驱动：解读自己的论文和项目，也记录自己对 AGI 的学习过程。",
+    all: {
+      heading: "AGI 研究学习笔记与工作解读",
+      subheading: "由对 AGI 的好奇心和使命感驱动：解读自己的论文和项目，也记录自己对 AGI 的学习过程。",
+      emptyTitle: "暂无研究笔记。",
+      emptyText: "新的 AGI 笔记发布后会出现在这里。",
+      allResearch: "全部研究",
+    },
+    papers: {
+      heading: "我的论文",
+      subheading: "对自己论文和研究工作的解释、复盘与延展。",
+      emptyTitle: "暂无论文解读。",
+      emptyText: "新的论文解读发布后会出现在这里。",
+      allResearch: "全部论文",
+    },
+    "open-source": {
+      heading: "开源项目",
+      subheading: "围绕自己开源 AGI 项目的发布、设计和技术说明。",
+      emptyTitle: "暂无开源项目发布。",
+      emptyText: "新的开源项目文章发布后会出现在这里。",
+      allResearch: "全部项目",
+    },
+    "reading-notes": {
+      heading: "阅读笔记",
+      subheading: "记录对 AGI 相关论文、系统和技术路径的学习过程。",
+      emptyTitle: "暂无阅读笔记。",
+      emptyText: "新的阅读笔记发布后会出现在这里。",
+      allResearch: "全部笔记",
+    },
     search: "搜索",
     pinned: "置顶",
     topics: "主题索引",
-    allResearch: "全部研究",
     loadMore: "加载更多研究笔记",
-    openSource: "开源项目",
-    readingNotes: "阅读笔记",
-    noOpenSource: "暂无开源项目发布。",
-    noReadingNotes: "暂无阅读笔记。",
+    noPinned: "当前列表暂无置顶文章。",
+    noTopics: "暂无主题。",
   }
-} satisfies Record<Lang, FlowCopy>;
+} satisfies Record<Lang, Record<Flow, Pick<FlowCopy, "heading" | "subheading" | "emptyTitle" | "emptyText" | "allResearch">> & Omit<FlowCopy, "heading" | "subheading" | "emptyTitle" | "emptyText" | "allResearch">>;
 
-const copy = allCopy[lang];
+const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
 ---
 
 <section class="hero" aria-labelledby="site-title">
@@ -87,32 +138,41 @@ const copy = allCopy[lang];
 </section>
 
 <main class="flow-layout">
-  <section id="papers" class="post-stream anchor-target" aria-label="Research flow">
+  <section class="post-stream anchor-target" aria-label="Research flow">
     <div class="post-list">
-      {posts.map((post) => (
-        <a class="post-card-link" href={`${base}/${lang}/${post.data.post_slug}/`}>
-          <article class="post-card">
-            <div class="post-copy">
-              <div class="meta">
-                {post.data.pinned && <span class="pill primary">{copy.pinned}</span>}
-                {post.data.category && <span class="pill">{post.data.category}</span>}
-                {post.data.read_time && <span class="pill">{post.data.read_time}</span>}
-              </div>
-              <h2>{post.data.title}</h2>
-              <p>{post.data.description}</p>
-              <div class="tag-row">
-                {post.data.tags.map((tag) => <span class="tag">{tag}</span>)}
-              </div>
-            </div>
-            {post.data.image && (
-              <figure class="post-figure">
-                <img src={`${base}${post.data.image}`} alt={`${post.data.title} figure`} loading="lazy" />
-              </figure>
-            )}
-          </article>
-        </a>
-      ))}
-      <div class="load">{copy.loadMore}</div>
+      {posts.length > 0 ? (
+        <>
+          {posts.map((post) => (
+            <a class="post-card-link" href={`${base}/${lang}/${post.data.post_slug}/`}>
+              <article class="post-card">
+                <div class="post-copy">
+                  <div class="meta">
+                    {post.data.pinned && <span class="pill primary">{copy.pinned}</span>}
+                    {post.data.category && <span class="pill">{post.data.category}</span>}
+                    {post.data.read_time && <span class="pill">{post.data.read_time}</span>}
+                  </div>
+                  <h2>{post.data.title}</h2>
+                  <p>{post.data.description}</p>
+                  <div class="tag-row">
+                    {post.data.tags.map((tag) => <span class="tag">{tag}</span>)}
+                  </div>
+                </div>
+                {post.data.image && (
+                  <figure class="post-figure">
+                    <img src={`${base}${post.data.image}`} alt={`${post.data.title} figure`} loading="lazy" />
+                  </figure>
+                )}
+              </article>
+            </a>
+          ))}
+          <div class="load">{copy.loadMore}</div>
+        </>
+      ) : (
+        <div class="empty-flow">
+          <h2>{copy.emptyTitle}</h2>
+          <p>{copy.emptyText}</p>
+        </div>
+      )}
     </div>
   </section>
 
@@ -125,14 +185,18 @@ const copy = allCopy[lang];
     <section class="rail-section">
       <h2>{copy.pinned}</h2>
       <ul class="pinned-list">
-        {pinnedPosts.map((post) => (
-          <li>
-            <a href={`${base}/${lang}/${post.data.post_slug}/`}>
-              <strong>{post.data.title}</strong>
-              <span>{[post.data.category, post.data.venue].filter(Boolean).join(" · ")}</span>
-            </a>
-          </li>
-        ))}
+        {pinnedPosts.length > 0 ? (
+          pinnedPosts.map((post) => (
+            <li>
+              <a href={`${base}/${lang}/${post.data.post_slug}/`}>
+                <strong>{post.data.title}</strong>
+                <span>{[post.data.category, post.data.venue].filter(Boolean).join(" · ")}</span>
+              </a>
+            </li>
+          ))
+        ) : (
+          <li><span>{copy.noPinned}</span></li>
+        )}
       </ul>
     </section>
 
@@ -140,36 +204,12 @@ const copy = allCopy[lang];
       <h2>{copy.topics}</h2>
       <ul class="topic-list">
         <li><strong>{copy.allResearch}</strong><span>{posts.length}</span></li>
-        {topics.map((topic) => <li><span>{topic}</span><span>{topicCounts.get(topic)}</span></li>)}
+        {topics.length > 0 ? (
+          topics.map((topic) => <li><span>{topic}</span><span>{topicCounts.get(topic)}</span></li>)
+        ) : (
+          <li><span>{copy.noTopics}</span><span>0</span></li>
+        )}
       </ul>
     </section>
   </aside>
 </main>
-
-<section class="collection-sections" aria-label="Secondary collections">
-  <section id="open-source" class="collection-section anchor-target">
-    <h2>{copy.openSource}</h2>
-    {openSourcePosts.length > 0 ? (
-      <ul>
-        {openSourcePosts.map((post) => (
-          <li><a href={`${base}/${lang}/${post.data.post_slug}/`}>{post.data.title}</a></li>
-        ))}
-      </ul>
-    ) : (
-      <p>{copy.noOpenSource}</p>
-    )}
-  </section>
-
-  <section id="reading-notes" class="collection-section anchor-target">
-    <h2>{copy.readingNotes}</h2>
-    {readingNotePosts.length > 0 ? (
-      <ul>
-        {readingNotePosts.map((post) => (
-          <li><a href={`${base}/${lang}/${post.data.post_slug}/`}>{post.data.title}</a></li>
-        ))}
-      </ul>
-    ) : (
-      <p>{copy.noReadingNotes}</p>
-    )}
-  </section>
-</section>

@@ -334,6 +334,29 @@ a {
   font-size: 13px;
 }
 
+.empty-flow {
+  min-height: 260px;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  padding: 36px 24px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.empty-flow h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.empty-flow p {
+  max-width: 520px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
 .anchor-target {
   scroll-margin-top: 24px;
 }

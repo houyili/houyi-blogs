@@ -24,6 +24,7 @@ const published = new Intl.DateTimeFormat(lang === "zh" ? "zh-CN" : "en", {
   day: "numeric"
 }).format(post.data.published);
 const switchLabel = lang === "en" ? "中文" : "EN";
+const current = post.data.paper ? "papers" : post.data.project ? "open-source" : "reading-notes";
 const showHeaderDescription = !post.data.hide_description_in_header;
 const backLabel = lang === "en" ? "Back to AGI Flow" : "返回 AGI Flow";
 const metaParts = [
@@ -41,7 +42,13 @@ const tocHeadings = headings
   }));
 ---
 
-<BaseLayout title={`${post.data.title} | Houyi AI Research Flow`} description={post.data.description} lang={lang}>
+<BaseLayout
+  title={`${post.data.title} | Houyi AI Research Flow`}
+  description={post.data.description}
+  lang={lang}
+  current={current}
+  switchHref={translationHref}
+>
   <div class="post-shell">
     <article class="post-page">
       <header class="post-header">
