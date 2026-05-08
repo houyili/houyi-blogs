@@ -43,6 +43,9 @@ const topicEntries = topicOrder
   .map((topic) => [topic, topicCounts.get(topic) ?? 0] as const)
   .sort((a, b) => b[1] - a[1] || topicOrder.indexOf(a[0]) - topicOrder.indexOf(b[0]));
 const topics = topicEntries.map(([topic]) => topic);
+const visibleTopics = topics.slice(0, 1);
+const collapsedTopics = topics.slice(1);
+const moreTopicsLabel = lang === "en" ? "More" : "更多";
 const searchExamples = topics.slice(0, 4);
 const searchPlaceholder = lang === "en"
   ? searchExamples.length > 0 ? `Search ${searchExamples.join(", ")}...` : "Search this flow..."
@@ -205,7 +208,22 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
       <ul class="topic-list">
         <li><strong>{copy.allResearch}</strong><span>{posts.length}</span></li>
         {topics.length > 0 ? (
-          topics.map((topic) => <li><span>{topic}</span><span>{topicCounts.get(topic)}</span></li>)
+          <>
+            {visibleTopics.map((topic) => <li><span>{topic}</span><span>{topicCounts.get(topic)}</span></li>)}
+            {collapsedTopics.length > 0 && (
+              <li class="topic-more">
+                <details>
+                  <summary>
+                    <span>{moreTopicsLabel}</span>
+                    <span>{collapsedTopics.length}</span>
+                  </summary>
+                  <ul class="topic-list topic-list-collapsed">
+                    {collapsedTopics.map((topic) => <li><span>{topic}</span><span>{topicCounts.get(topic)}</span></li>)}
+                  </ul>
+                </details>
+              </li>
+            )}
+          </>
         ) : (
           <li><span>{copy.noTopics}</span><span>0</span></li>
         )}
@@ -213,3 +231,45 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
     </section>
   </aside>
 </main>
+
+<style>
+  .topic-more {
+    display: block;
+    padding: 0;
+  }
+
+  .topic-more details {
+    display: grid;
+  }
+
+  .topic-more summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+    color: var(--muted);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .topic-more summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .topic-more summary span:first-child::after {
+    content: " +";
+    color: var(--accent-strong);
+  }
+
+  .topic-more details[open] summary span:first-child::after {
+    content: " -";
+  }
+
+  .topic-list-collapsed {
+    border-top: 1px solid var(--line);
+  }
+
+  .topic-list-collapsed li {
+    padding-left: 10px;
+  }
+</style>
