@@ -68,7 +68,7 @@ const tocHeadings = headings
         <slot />
       </div>
 
-      <GiscusComments lang={lang} />
+      <GiscusComments lang={lang} term={post.data.post_slug} />
     </article>
 
     {tocHeadings.length > 0 && (
