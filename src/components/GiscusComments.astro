@@ -1,13 +1,14 @@
 ---
 type Lang = "en" | "zh";
 
-const { lang = "en" } = Astro.props as { lang?: Lang };
+const { lang = "en", term } = Astro.props as { lang?: Lang; term?: string };
 
 const repo = import.meta.env.PUBLIC_GISCUS_REPO ?? "houyili/houyi-blogs";
 const repoId = import.meta.env.PUBLIC_GISCUS_REPO_ID ?? "R_kgDOSSJGDA";
 const category = import.meta.env.PUBLIC_GISCUS_CATEGORY ?? "General";
 const categoryId = import.meta.env.PUBLIC_GISCUS_CATEGORY_ID ?? "DIC_kwDOSSJGDM4C8KTm";
 const enabled = import.meta.env.PUBLIC_GISCUS_ENABLED === "false" ? false : true;
+const discussionTerm = term ?? `${repo}:${category}`;
 const giscusLang = lang === "zh" ? "zh-CN" : "en";
 const title = lang === "zh" ? "评论" : "Comments";
 const note =
@@ -36,7 +37,8 @@ const discussionsLabel = lang === "zh" ? "打开 GitHub Discussions" : "Open Git
         data-repo-id={repoId}
         data-category={category}
         data-category-id={categoryId}
-        data-mapping="pathname"
+        data-mapping="specific"
+        data-term={discussionTerm}
         data-strict="1"
         data-reactions-enabled="1"
         data-emit-metadata="0"
