@@ -18,10 +18,12 @@ Do not change deployment ownership while importing. `astro.config.mjs`, `public/
    - paired bilingual: `blog.en.md` + `blog.zh.md`
 2. Read `references/import-contract.md` before creating or changing sidecar YAML.
 3. Create/update the sidecar YAML. Put all metadata there: `slug`, titles, descriptions, tags, pinned state, cover image, asset roots, `hide_description_in_header`, and optional `footer_nav`.
+   - Use `image_source` when the homepage card should use a cropped/generated thumbnail that is not referenced in the article body. Keep the file under a configured `asset_roots` path so reimport copies it.
 4. Sanity-check source sections before import:
    - English section has English subtitle/download card text.
    - Chinese section has Chinese subtitle/download card text.
    - Download links and raw HTML `<a href>` point to local files or intended external URLs.
+   - Paper/slides/poster download cards are block-style links to downloadable files; the importer should add the reusable `download-card` class and site CSS supplies the icon.
    - Tags/categories match the current publication plan.
 5. Import from source, never by editing generated MDX:
 
@@ -48,6 +50,7 @@ npm run skill:self-test
    - expected routes exist for `/en/<slug>/` and `/zh/<slug>/`
    - removed old slugs are absent from `dist/`
    - homepage cards, pinned rail, topics, and search placeholder are generated from the current posts
+   - homepage card thumbnails come from sidecar `image` or `image_source`, not one-off edits to generated MDX
    - no stale placeholder posts remain
    - asset links match the current deployment base; do not fix this by changing domain config unless explicitly requested
 8. If anything fails, fix importer rules, sidecar metadata, source draft, or site CSS, then rerun import. Do not patch generated article bodies.
@@ -59,6 +62,7 @@ For a long paper, prefer separate slugs such as `<paper>-p1` and `<paper>-p2`. R
 - P1 body: usually `pinned: true`, category `Paper Explainer · P1` / `论文解读 · P1`.
 - P2 appendix: usually `pinned: false`, category `Appendix · P2` / `附录 · P2`.
 - Keep shared title/subtitle/tags/venue/project id across P1 and P2 unless the user asks otherwise.
+- If P2 needs an appendix-specific card image, crop or generate a source-side thumbnail, point `image_source` at it, and reimport. Do not hand-copy a thumbnail into `public/assets` where the next import can delete it.
 - Preserve source numbering across the pair; never renumber figures, tables, formulas, appendices, or references.
 - Add P1 -> P2 and P2 -> P1 links through `footer_nav`, not by editing generated MDX.
 - Remove old single-post artifacts and stale placeholders in the same import change when replacing a previous one-piece article.

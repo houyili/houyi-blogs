@@ -46,6 +46,10 @@ const topics = topicEntries.map(([topic]) => topic);
 const visibleTopics = topics.slice(0, 1);
 const collapsedTopics = topics.slice(1);
 const moreTopicsLabel = lang === "en" ? "More" : "更多";
+const topicEmptyTitle = lang === "en" ? "No posts for this topic." : "暂无该主题文章。";
+const topicEmptyText = lang === "en"
+  ? "Choose another topic or return to the full research flow."
+  : "请选择其他主题，或返回完整研究流。";
 const searchExamples = topics.slice(0, 4);
 const searchPlaceholder = lang === "en"
   ? searchExamples.length > 0 ? `Search ${searchExamples.join(", ")}...` : "Search this flow..."
@@ -142,11 +146,19 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
 
 <main class="flow-layout">
   <section class="post-stream anchor-target" aria-label="Research flow">
-    <div class="post-list">
+    <div class="post-list" data-post-list>
       {posts.length > 0 ? (
         <>
-          {posts.map((post) => (
-            <a class="post-card-link" href={`${base}/${lang}/${post.data.post_slug}/`}>
+          {posts.map((post, index) => (
+            <a
+              class="post-card-link"
+              href={`${base}/${lang}/${post.data.post_slug}/`}
+              data-post-card
+              data-tags={post.data.tags.map((tag) => encodeURIComponent(tag)).join(" ")}
+              data-published={post.data.published.valueOf()}
+              data-post-slug={post.data.post_slug}
+              data-original-index={index}
+            >
               <article class="post-card">
                 <div class="post-copy">
                   <div class="meta">
@@ -168,7 +180,11 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
               </article>
             </a>
           ))}
-          <div class="load">{copy.loadMore}</div>
+          <div class="empty-flow topic-empty is-hidden" data-topic-empty>
+            <h2>{topicEmptyTitle}</h2>
+            <p>{topicEmptyText}</p>
+          </div>
+          <div class="load" data-load-more>{copy.loadMore}</div>
         </>
       ) : (
         <div class="empty-flow">
@@ -185,7 +201,7 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
       <input class="search-box" type="search" placeholder={searchPlaceholder} />
     </section>
 
-    <section class="rail-section">
+    <section class="rail-section" data-pinned-section>
       <h2>{copy.pinned}</h2>
       <ul class="pinned-list">
         {pinnedPosts.length > 0 ? (
@@ -206,10 +222,28 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
     <section class="rail-section">
       <h2>{copy.topics}</h2>
       <ul class="topic-list">
-        <li><strong>{copy.allResearch}</strong><span>{posts.length}</span></li>
+        <li>
+          <button class="topic-filter is-active" type="button" data-topic-filter="" data-topic-key="" aria-pressed="true">
+            <strong>{copy.allResearch}</strong>
+            <span>{posts.length}</span>
+          </button>
+        </li>
         {topics.length > 0 ? (
           <>
-            {visibleTopics.map((topic) => <li><span>{topic}</span><span>{topicCounts.get(topic)}</span></li>)}
+            {visibleTopics.map((topic) => (
+              <li>
+                <button
+                  class="topic-filter"
+                  type="button"
+                  data-topic-filter={topic}
+                  data-topic-key={encodeURIComponent(topic)}
+                  aria-pressed="false"
+                >
+                  <span>{topic}</span>
+                  <span>{topicCounts.get(topic)}</span>
+                </button>
+              </li>
+            ))}
             {collapsedTopics.length > 0 && (
               <li class="topic-more">
                 <details>
@@ -218,7 +252,20 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
                     <span>{collapsedTopics.length}</span>
                   </summary>
                   <ul class="topic-list topic-list-collapsed">
-                    {collapsedTopics.map((topic) => <li><span>{topic}</span><span>{topicCounts.get(topic)}</span></li>)}
+                    {collapsedTopics.map((topic) => (
+                      <li>
+                        <button
+                          class="topic-filter"
+                          type="button"
+                          data-topic-filter={topic}
+                          data-topic-key={encodeURIComponent(topic)}
+                          aria-pressed="false"
+                        >
+                          <span>{topic}</span>
+                          <span>{topicCounts.get(topic)}</span>
+                        </button>
+                      </li>
+                    ))}
                   </ul>
                 </details>
               </li>
@@ -233,6 +280,45 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
 </main>
 
 <style>
+  :global(.flow-layout.is-topic-filtered .pill.primary) {
+    display: none;
+  }
+
+  .is-hidden {
+    display: none !important;
+  }
+
+  .topic-filter {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .topic-filter:hover span:first-child,
+  .topic-filter:focus-visible span:first-child {
+    color: var(--accent-strong);
+  }
+
+  .topic-filter:focus-visible {
+    border-radius: 6px;
+    outline: 2px solid rgba(47, 127, 120, 0.28);
+    outline-offset: 4px;
+  }
+
+  .topic-filter.is-active span:first-child,
+  .topic-filter.is-active strong {
+    color: var(--accent-strong);
+    font-weight: 760;
+  }
+
   .topic-more {
     display: block;
     padding: 0;
@@ -273,3 +359,69 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
     padding-left: 10px;
   }
 </style>
+
+<script>
+  const topicButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-topic-filter]"));
+  const postCards = Array.from(document.querySelectorAll<HTMLElement>("[data-post-card]"));
+  const postList = document.querySelector<HTMLElement>("[data-post-list]");
+  const topicEmpty = document.querySelector<HTMLElement>("[data-topic-empty]");
+  const loadMore = document.querySelector<HTMLElement>("[data-load-more]");
+  const pinnedSection = document.querySelector<HTMLElement>("[data-pinned-section]");
+  const flowLayout = document.querySelector<HTMLElement>(".flow-layout");
+
+  const setTopicFilter = (topic: string, updateUrl = true) => {
+    const selectedButton = topicButtons.find((button) => button.dataset.topicFilter === topic) ?? topicButtons[0];
+    const selectedKey = selectedButton?.dataset.topicKey ?? "";
+    const isTopicFiltered = selectedKey !== "";
+    let visibleCount = 0;
+    const sortedCards = [...postCards].sort((a, b) => {
+      if (isTopicFiltered) {
+        const dateDiff = Number(b.dataset.published ?? 0) - Number(a.dataset.published ?? 0);
+        if (dateDiff !== 0) return dateDiff;
+        return (a.dataset.postSlug ?? "").localeCompare(b.dataset.postSlug ?? "");
+      }
+      return Number(a.dataset.originalIndex ?? 0) - Number(b.dataset.originalIndex ?? 0);
+    });
+
+    topicButtons.forEach((button) => {
+      const isActive = button === selectedButton;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", String(isActive));
+    });
+
+    const selectedDetails = selectedButton?.closest("details");
+    if (selectedDetails) selectedDetails.open = true;
+
+    sortedCards.forEach((card) => {
+      postList?.insertBefore(card, topicEmpty ?? loadMore ?? null);
+      const tags = (card.dataset.tags ?? "").split(" ").filter(Boolean);
+      const isVisible = selectedKey === "" || tags.includes(selectedKey);
+      card.classList.toggle("is-hidden", !isVisible);
+      if (isVisible) visibleCount += 1;
+    });
+
+    topicEmpty?.classList.toggle("is-hidden", visibleCount > 0);
+    loadMore?.classList.toggle("is-hidden", visibleCount === 0 || isTopicFiltered);
+    pinnedSection?.classList.toggle("is-hidden", isTopicFiltered);
+    flowLayout?.classList.toggle("is-topic-filtered", isTopicFiltered);
+
+    if (updateUrl) {
+      const url = new URL(window.location.href);
+      if (topic) {
+        url.searchParams.set("tag", topic);
+      } else {
+        url.searchParams.delete("tag");
+      }
+      window.history.replaceState({}, "", url);
+    }
+  };
+
+  topicButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      setTopicFilter(button.dataset.topicFilter ?? "");
+    });
+  });
+
+  const initialTag = new URLSearchParams(window.location.search).get("tag") ?? "";
+  if (initialTag) setTopicFilter(initialTag, false);
+</script>

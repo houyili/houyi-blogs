@@ -26,7 +26,7 @@ Ask it to check:
 - double-figure, four-figure, grid, or flex layout broken
 - formula number/tag missing or out of order
 - small card/stat/download block lost
-- paper/slides/poster download cards visible and clickable-looking
+- paper/slides/poster download cards visible, clickable-looking, and carrying a download icon/affordance
 - appendix/reference content missing
 - P1/P2 previous/next footer cards present
 - P1 and P2 read as one split article: shared title/subtitle/tags, continuous numbering, and no duplicated/missing intro/download blocks beyond what source contains
@@ -38,6 +38,7 @@ Ask it to check:
 After imports that change the article set, also inspect the homepage screenshot or browser view:
 
 - P1 appears before P2 when both belong to the same paper.
+- P1/P2 homepage thumbnails use the intended configured card images; appendix thumbnails should avoid excessive whitespace or legends when a cropped `image_source` was provided.
 - Deleted placeholder posts are gone.
 - Pinned rail reflects `pinned: true` posts.
 - Topics and search placeholder use current tags only.

@@ -7,7 +7,8 @@ project: moe-equal-resources
 venue: ICLR 2026
 venue_type: Oral
 paper_url: ""
-image: /assets/papers/moe-equal-resources-p2/blog_assets/arch_fig_shape_ratios.png
+image: ""
+image_source: blog_assets/arch_fig_shape_ratios_right.png
 hide_description_in_header: true
 source_format: single-bilingual
 sections:

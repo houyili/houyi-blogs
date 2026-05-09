@@ -26,7 +26,8 @@ const zhBody = prepareBody(zhSourceBody, setup.config, loaded.sourceProject, sit
 const assetOutRoot = args.dryRun
   ? path.join(repoRoot, "tmp", "import-dry-run", setup.config.slug, "assets")
   : path.join(repoRoot, "public", "assets", "papers", setup.config.slug);
-const copiedAssets = await copyReferencedAssets([...enBody.assets, ...zhBody.assets], loaded.sourceProject, assetOutRoot);
+const configuredAssets = collectConfiguredAssets(setup.config);
+const copiedAssets = await copyReferencedAssets([...enBody.assets, ...zhBody.assets, ...configuredAssets], loaded.sourceProject, assetOutRoot);
 
 const enMdx = createPostMdx({
   lang: "en",
@@ -148,6 +149,7 @@ async function createConfigTemplate(sourcePath, configPath, slugOverride) {
     venue_type: "TODO",
     paper_url: "",
     image: "",
+    image_source: "",
     source_format: "single-bilingual",
     sections: defaultSections,
     posts: {
@@ -179,6 +181,7 @@ function normalizeConfig(config) {
   config.paper ??= true;
   config.paper_url ??= "";
   config.image ??= "";
+  config.image_source ??= "";
   config.hide_description_in_header ??= false;
   config.footer_nav ??= {};
   config.posts ??= {};
@@ -302,8 +305,10 @@ function stripReferences(markdown) {
 function prepareBody(markdown, config, sourceProject, siteBase) {
   const headingShifted = normalizeDisplayMath(shiftHeadings(markdown));
   const assets = collectReferencedAssets(headingShifted, config.asset_roots);
-  const rewritten = makeMdxCompatible(rewriteAssetPaths(headingShifted, config, sourceProject, siteBase));
-  return { markdown: rewritten.trim(), assets };
+  const rewritten = rewriteAssetPaths(headingShifted, config, sourceProject, siteBase);
+  const withDownloadCards = markDownloadCards(rewritten);
+  const mdxCompatible = makeMdxCompatible(withDownloadCards);
+  return { markdown: mdxCompatible.trim(), assets };
 }
 
 function shiftHeadings(markdown) {
@@ -334,6 +339,17 @@ function collectReferencedAssets(markdown, assetRoots = defaultAssetRoots) {
   return [...found].sort();
 }
 
+function collectConfiguredAssets(config) {
+  const assets = [];
+  if (config.image_source) {
+    if (!isLocalAsset(config.image_source, config.asset_roots)) {
+      throw new Error(`image_source must be a local asset under asset_roots: ${config.image_source}`);
+    }
+    assets.push(config.image_source);
+  }
+  return assets;
+}
+
 function rewriteAssetPaths(markdown, config, sourceProject, siteBase) {
   return markdown
     .replace(/(<img\b[^>]*\bsrc=")([^"]+)(")/g, (full, prefix, target, suffix) => {
@@ -352,6 +368,27 @@ function rewriteAssetPaths(markdown, config, sourceProject, siteBase) {
       if (!isLocalAsset(target, config.asset_roots)) return full;
       return `${prefix}${webPathFor(target, config.slug, sourceProject, siteBase)}${suffix}`;
     });
+}
+
+function markDownloadCards(markdown) {
+  return markdown.replace(/<a\b([^>]*\bhref="([^"]+)"[^>]*)>/g, (full, attrs, href) => {
+    if (!isDownloadAsset(href) || !looksLikeBlockCard(attrs) || /\bdownload-card\b/.test(attrs)) return full;
+    if (/\bclassName="([^"]*)"/.test(attrs)) {
+      return `<a${attrs.replace(/\bclassName="([^"]*)"/, (_, classes) => `className="${classes} download-card"`)}>`;
+    }
+    if (/\bclass="([^"]*)"/.test(attrs)) {
+      return `<a${attrs.replace(/\bclass="([^"]*)"/, (_, classes) => `className="${classes} download-card"`)}>`;
+    }
+    return `<a className="download-card"${attrs}>`;
+  });
+}
+
+function isDownloadAsset(href) {
+  return /\.(?:pdf|pptx?|key|zip)(?:[?#].*)?$/i.test(href);
+}
+
+function looksLikeBlockCard(attrs) {
+  return /style=/.test(attrs) && /display\s*:\s*(?:block|grid|flex)/i.test(attrs);
 }
 
 function makeMdxCompatible(markdown) {
@@ -455,6 +492,11 @@ async function copyReferencedAssets(assets, sourceProject, outRoot) {
 
 function createPostMdx({ lang, post, body, source, setup, importedAt, siteBase }) {
   const { config } = setup;
+  const image = config.image_source
+    ? webPathFor(config.image_source, config.slug, source.sourceProject, siteBase)
+    : config.image
+      ? withSiteBase(config.image, siteBase)
+      : "";
   const frontmatter = {
     title: post.title,
     description: post.description,
@@ -465,7 +507,7 @@ function createPostMdx({ lang, post, body, source, setup, importedAt, siteBase }
     translation: post.translation,
     category: post.category,
     read_time: post.read_time,
-    image: config.image ? withSiteBase(config.image, siteBase) : "",
+    image,
     tags: post.tags,
     pinned: Boolean(config.pinned),
     paper: Boolean(config.paper),

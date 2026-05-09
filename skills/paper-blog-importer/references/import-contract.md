@@ -29,6 +29,7 @@ venue: ICLR 2026
 venue_type: Oral
 paper_url: ""
 image: /assets/papers/paper-slug-p1/path/to/cover.png
+image_source: ""
 hide_description_in_header: true
 source_format: single-bilingual
 sections:
@@ -81,6 +82,7 @@ sources:
 - Put tags in config, not generated MDX. Reimport must preserve them.
 - Use the same tag set across en/zh unless there is a deliberate bilingual taxonomy change.
 - `hide_description_in_header: true` prevents duplicate subtitles when the source body already contains a subtitle/download card block.
+- `image` can point to an already-copied asset URL. Prefer `image_source` when the cover/card image is a source-side thumbnail or crop that is not otherwise referenced in the body; it is copied on every reimport and converted to the correct site asset URL.
 - `footer_nav` is the only supported way to add previous/next links to imported posts.
 - If replacing a long old single post with split posts, delete the old generated MDX, old asset directory, and old fixture config in the same change.
 - Do not change `astro.config.mjs`, `public/CNAME`, GitHub Pages settings, or DNS/domain configuration as part of an import. Treat deployment base/domain as an external project setting.
@@ -95,7 +97,9 @@ Allowed mechanical changes:
 - Rewrite local assets to `/assets/papers/<slug>/...`.
 - The importer should derive any needed deployment prefix from the existing Astro config; sidecar YAML should stay portable and should not hard-code a domain-specific workaround.
 - Copy assets from configured `asset_roots`.
+- Copy `image_source` as a configured asset and use it as the generated post `image`.
 - Rewrite raw HTML `<img src="...">` and `<a href="...">` local resources, including download links.
+- Mark block-style local download links such as paper/slides/poster PDFs with `download-card`; CSS owns the visual download icon, so generated MDX should not be hand-edited for icon markup.
 - Decode local URL-encoded paths such as `Final%20vision/...` for filesystem lookup, then keep safe URL encoding in generated routes.
 - Convert raw HTML to MDX-safe syntax without changing layout intent, such as self-closing `<img />` and JSX style objects.
 
@@ -108,6 +112,7 @@ For a body/appendix split, read `split-body-appendix.md` before editing configs.
 - English source section should not start with a Chinese subtitle unless intentionally bilingual.
 - Chinese source section should not start with an English-only subtitle unless intentionally bilingual.
 - Paper/slides/poster links should be present in both language sections when the publication plan includes download cards.
+- Download cards should visibly communicate that they are downloadable; missing icons should be fixed in importer/CSS, not manually inside generated article prose.
 - P1/P2 posts should share title/subtitle and tags when they are parts of the same article.
 - P1 should link to P2; P2 should link back to P1 through config-driven `footer_nav`.
 - Continuous numbering across P1/P2 is source-owned. Verify counts and visible numbering, but do not reset numbering per page.
@@ -122,6 +127,7 @@ Treat `import-report.json` as the programmatic source of truth. A publishable im
 - no feature count mismatches for images, tables, figures, figcaptions, display math, equation tags, or raw HTML blocks
 - matching normalized text hashes
 - expected download assets copied, for example paper PDF, slides PDF, and poster PDF
+- configured `image_source` copied and referenced by the generated frontmatter image
 
 If checks fail, fix the importer, sidecar, source draft, or CSS, then rerun the import.
 

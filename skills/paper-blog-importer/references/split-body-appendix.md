@@ -72,6 +72,15 @@ footer_nav:
 
 Use the same main title, subtitle/description, tags, venue, and project id across P1 and P2 unless the user asks otherwise. P1 should usually be pinned and P2 should not; that makes the homepage show P1 before P2 and keeps the pinned rail focused on the main article.
 
+If P2 needs a different homepage thumbnail, prefer a source-side thumbnail/crop and `image_source`:
+
+```yaml
+image: ""
+image_source: blog_assets/<appendix-card-thumbnail>.png
+```
+
+The thumbnail file must live under `asset_roots`, so it is copied on every import. Do not hand-copy card images into `public/assets/papers/...`; that directory is regenerated.
+
 ## Shared Numbering And Download Cards
 
 When the source deliberately uses continuous numbering across body and appendix, preserve it exactly:
@@ -81,6 +90,7 @@ When the source deliberately uses continuous numbering across body and appendix,
 - Keep `\tag{}` equation numbers in source; let KaTeX render them.
 - Treat duplicate-looking subtitles/download cards as source-owned layout. Use `hide_description_in_header: true` so the layout does not duplicate the subtitle above the imported block.
 - If both P1 and P2 include Paper / Slides / Poster cards, both configs need `asset_roots` covering the same local download files.
+- Download cards should get the importer-generated `download-card` class and display the shared CSS download icon in both P1 and P2.
 
 Typical asset roots for paper launches:
 
@@ -134,6 +144,7 @@ Then inspect pair behavior:
 - Topics count both posts and only current tags.
 - Search placeholder is generated from current tags, not deleted placeholders.
 - Paper / Slides / Poster links exist and point to copied assets.
+- Paper / Slides / Poster cards show a download icon/affordance.
 - No generated MDX contains local absolute paths.
 - Removed old slugs and placeholder posts are absent from `dist/` and sitemap.
 

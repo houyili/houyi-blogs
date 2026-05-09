@@ -7,12 +7,20 @@ const repo = import.meta.env.PUBLIC_GISCUS_REPO ?? "houyili/houyi-blogs";
 const repoId = import.meta.env.PUBLIC_GISCUS_REPO_ID ?? "R_kgDOSSJGDA";
 const category = import.meta.env.PUBLIC_GISCUS_CATEGORY ?? "General";
 const categoryId = import.meta.env.PUBLIC_GISCUS_CATEGORY_ID ?? "DIC_kwDOSSJGDM4C8KTm";
+const enabled = import.meta.env.PUBLIC_GISCUS_ENABLED === "true";
 const giscusLang = lang === "zh" ? "zh-CN" : "en";
 const title = lang === "zh" ? "评论" : "Comments";
 const note =
   lang === "zh"
     ? "评论由 GitHub Discussions 托管。登录 GitHub 后即可参与讨论。"
     : "Comments are powered by GitHub Discussions. Sign in with GitHub to join the thread.";
+const fallback =
+  lang === "zh"
+    ? "内嵌评论会在仓库安装并启用 Giscus 后显示。现在可以先通过 GitHub Discussions 参与讨论。"
+    : "Inline comments will appear after Giscus is installed and enabled for this repository. For now, join through GitHub Discussions.";
+const discussionsUrl = `https://github.com/${repo}/discussions/categories/${category.toLowerCase()}`;
+const discussionsLabel = lang === "zh" ? "打开 GitHub Discussions" : "Open GitHub Discussions";
+const installLabel = lang === "zh" ? "安装 Giscus App" : "Install Giscus App";
 ---
 
 <section class="comments-section" aria-labelledby="comments-title">
@@ -20,24 +28,34 @@ const note =
     <h2 id="comments-title">{title}</h2>
     <p>{note}</p>
   </div>
-  <div class="giscus-frame">
-    <script
-      is:inline
-      src="https://giscus.app/client.js"
-      data-repo={repo}
-      data-repo-id={repoId}
-      data-category={category}
-      data-category-id={categoryId}
-      data-mapping="pathname"
-      data-strict="1"
-      data-reactions-enabled="1"
-      data-emit-metadata="0"
-      data-input-position="bottom"
-      data-theme="light"
-      data-lang={giscusLang}
-      crossorigin="anonymous"
-      async
-    ></script>
-  </div>
+  {enabled ? (
+    <div class="giscus-frame">
+      <script
+        is:inline
+        src="https://giscus.app/client.js"
+        data-repo={repo}
+        data-repo-id={repoId}
+        data-category={category}
+        data-category-id={categoryId}
+        data-mapping="pathname"
+        data-strict="1"
+        data-reactions-enabled="1"
+        data-emit-metadata="0"
+        data-input-position="bottom"
+        data-theme="light"
+        data-lang={giscusLang}
+        crossorigin="anonymous"
+        async
+      ></script>
+    </div>
+  ) : (
+    <div class="comments-fallback">
+      <p>{fallback}</p>
+      <div class="comments-fallback-actions">
+        <a class="about-link" href={discussionsUrl}>{discussionsLabel}</a>
+        <a class="about-link secondary" href="https://github.com/apps/giscus">{installLabel}</a>
+      </div>
+    </div>
+  )}
   <noscript>{note}</noscript>
 </section>

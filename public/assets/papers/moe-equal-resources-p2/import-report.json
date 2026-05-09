@@ -11,8 +11,8 @@
     "chinese_segment": "557db031a67a66022ba363964e80de2d567eb010c187d24eea3d8ef92b8a4ecb",
     "normalized_source_text": "31c784be64737cec87ff100f77f7d2038b622ab0750345e3f17a13b7bc55263b",
     "normalized_generated_text": "31c784be64737cec87ff100f77f7d2038b622ab0750345e3f17a13b7bc55263b",
-    "english_output": "e2791a675da87bc357c618e45bbb60df5e75e00264128ea4b93850d26e6c5ac1",
-    "chinese_output": "8992316caefc5f7901d9e983ea126aae2211e595344db7ebc27db829ccfe767d"
+    "english_output": "dbb92d5f9fd36cfd81729b1685d783be62bb422b6d2e734cbb109f928c5ce0a6",
+    "chinese_output": "ab634bfaa5eeaadd3d81528419a8d9b103b7c9ee6a644fcc2ca0f84dc67f3ca4"
   },
   "outputs": {
     "en": "src/content/post/en/moe-equal-resources-p2.mdx",
@@ -93,6 +93,11 @@
         "source": "blog_assets/arch_fig_shape_ratios.png",
         "bytes": 89642,
         "output": "public/assets/papers/moe-equal-resources-p2/blog_assets/arch_fig_shape_ratios.png"
+      },
+      {
+        "source": "blog_assets/arch_fig_shape_ratios_right.png",
+        "bytes": 44048,
+        "output": "public/assets/papers/moe-equal-resources-p2/blog_assets/arch_fig_shape_ratios_right.png"
       },
       {
         "source": "blog_assets/arch_table_gate_norm.png",
