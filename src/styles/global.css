@@ -176,6 +176,11 @@ a {
   letter-spacing: 0;
 }
 
+.post-card-link[data-post-slug$="-p2"] .post-card h2 {
+  font-size: clamp(20px, 1.45vw, 23px);
+  line-height: 1.16;
+}
+
 .post-card p {
   max-width: 760px;
   margin: 10px 0 0;
