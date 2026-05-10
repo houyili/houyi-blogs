@@ -13,6 +13,8 @@ type FlowCopy = {
   loadMore: string;
   emptyTitle: string;
   emptyText: string;
+  searchEmptyTitle: string;
+  searchEmptyText: string;
   noPinned: string;
   noTopics: string;
 };
@@ -93,6 +95,8 @@ const allCopy = {
     pinned: "Pinned",
     topics: "Topics",
     loadMore: "Load more research notes",
+    searchEmptyTitle: "No posts match this search.",
+    searchEmptyText: "Try another query or clear the search box to return to the full flow.",
     noPinned: "No pinned posts in this flow.",
     noTopics: "No topics yet.",
   },
@@ -129,6 +133,8 @@ const allCopy = {
     pinned: "置顶",
     topics: "主题索引",
     loadMore: "加载更多研究笔记",
+    searchEmptyTitle: "没有匹配的文章。",
+    searchEmptyText: "可以换一个关键词，或清空搜索框返回完整列表。",
     noPinned: "当前列表暂无置顶文章。",
     noTopics: "暂无主题。",
   }
@@ -157,6 +163,7 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
               data-tags={post.data.tags.map((tag) => encodeURIComponent(tag)).join(" ")}
               data-published={post.data.published.valueOf()}
               data-post-slug={post.data.post_slug}
+              data-post-href={`${base}/${lang}/${post.data.post_slug}/`}
               data-original-index={index}
             >
               <article class="post-card">
@@ -180,9 +187,16 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
               </article>
             </a>
           ))}
-          <div class="empty-flow topic-empty is-hidden" data-topic-empty>
-            <h2>{topicEmptyTitle}</h2>
-            <p>{topicEmptyText}</p>
+          <div
+            class="empty-flow topic-empty is-hidden"
+            data-topic-empty
+            data-topic-empty-title={topicEmptyTitle}
+            data-topic-empty-text={topicEmptyText}
+            data-search-empty-title={copy.searchEmptyTitle}
+            data-search-empty-text={copy.searchEmptyText}
+          >
+            <h2 data-empty-title>{topicEmptyTitle}</h2>
+            <p data-empty-text>{topicEmptyText}</p>
           </div>
           <div class="load" data-load-more>{copy.loadMore}</div>
         </>
@@ -198,7 +212,7 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
   <aside class="rail" aria-label="Research index">
     <section class="rail-section">
       <h2>{copy.search}</h2>
-      <input class="search-box" type="search" placeholder={searchPlaceholder} />
+      <input class="search-box" type="search" placeholder={searchPlaceholder} data-search-box />
     </section>
 
     <section class="rail-section" data-pinned-section>
@@ -280,7 +294,8 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
 </main>
 
 <style>
-  :global(.flow-layout.is-topic-filtered .pill.primary) {
+  :global(.flow-layout.is-topic-filtered .pill.primary),
+  :global(.flow-layout.is-search-filtered .pill.primary) {
     display: none;
   }
 
@@ -365,17 +380,86 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
   const postCards = Array.from(document.querySelectorAll<HTMLElement>("[data-post-card]"));
   const postList = document.querySelector<HTMLElement>("[data-post-list]");
   const topicEmpty = document.querySelector<HTMLElement>("[data-topic-empty]");
+  const emptyTitle = topicEmpty?.querySelector<HTMLElement>("[data-empty-title]");
+  const emptyText = topicEmpty?.querySelector<HTMLElement>("[data-empty-text]");
   const loadMore = document.querySelector<HTMLElement>("[data-load-more]");
   const pinnedSection = document.querySelector<HTMLElement>("[data-pinned-section]");
   const flowLayout = document.querySelector<HTMLElement>(".flow-layout");
+  const searchBox = document.querySelector<HTMLInputElement>("[data-search-box]");
+  let activeTopic = "";
+  let activeSearchQuery = "";
+  let activeSearchPaths: string[] | null = null;
+  let searchRun = 0;
+  let searchTimer: number | undefined;
+  let pagefindPromise: Promise<any> | null = null;
 
-  const setTopicFilter = (topic: string, updateUrl = true) => {
+  const normalizePath = (path: string) => {
+    const pathname = new URL(path, window.location.origin).pathname;
+    return pathname.endsWith("/") ? pathname : `${pathname}/`;
+  };
+
+  const getPagefind = () => {
+    const loadPagefind = new Function("path", "return import(path)") as (path: string) => Promise<any>;
+    pagefindPromise ??= loadPagefind("/pagefind/pagefind.js").catch(() => null);
+    return pagefindPromise;
+  };
+
+  const fallbackSearchPaths = (query: string) => {
+    const needle = query.toLowerCase();
+    return postCards
+      .filter((card) => (card.textContent ?? "").toLowerCase().includes(needle))
+      .map((card) => normalizePath(card.dataset.postHref ?? card.getAttribute("href") ?? ""));
+  };
+
+  const runSearch = async (query: string) => {
+    const run = ++searchRun;
+    activeSearchQuery = query.trim();
+
+    if (!activeSearchQuery) {
+      activeSearchPaths = null;
+      applyFilters();
+      return;
+    }
+
+    const pagefind = await getPagefind();
+    if (run !== searchRun) return;
+
+    try {
+      const response = pagefind ? await pagefind.search(activeSearchQuery) : null;
+      if (run !== searchRun) return;
+
+      if (response?.results) {
+        const resultData = await Promise.all(response.results.map((result: any) => result.data()));
+        if (run !== searchRun) return;
+        activeSearchPaths = resultData.map((result: any) => normalizePath(result.url));
+      } else {
+        activeSearchPaths = fallbackSearchPaths(activeSearchQuery);
+      }
+    } catch {
+      if (run !== searchRun) return;
+      activeSearchPaths = fallbackSearchPaths(activeSearchQuery);
+    }
+
+    applyFilters();
+  };
+
+  const applyFilters = (updateUrl = true) => {
+    const topic = activeTopic;
     const selectedButton = topicButtons.find((button) => button.dataset.topicFilter === topic) ?? topicButtons[0];
     const selectedKey = selectedButton?.dataset.topicKey ?? "";
     const isTopicFiltered = selectedKey !== "";
+    const isSearchFiltered = activeSearchQuery !== "";
+    const searchOrder = new Map((activeSearchPaths ?? []).map((path, index) => [path, index]));
     let visibleCount = 0;
     const sortedCards = [...postCards].sort((a, b) => {
-      if (isTopicFiltered) {
+      if (isSearchFiltered) {
+        const aPath = normalizePath(a.dataset.postHref ?? a.getAttribute("href") ?? "");
+        const bPath = normalizePath(b.dataset.postHref ?? b.getAttribute("href") ?? "");
+        const searchDiff = (searchOrder.get(aPath) ?? Number.MAX_SAFE_INTEGER) - (searchOrder.get(bPath) ?? Number.MAX_SAFE_INTEGER);
+        if (searchDiff !== 0) return searchDiff;
+      }
+
+      if (isTopicFiltered || isSearchFiltered) {
         const dateDiff = Number(b.dataset.published ?? 0) - Number(a.dataset.published ?? 0);
         if (dateDiff !== 0) return dateDiff;
         return (a.dataset.postSlug ?? "").localeCompare(b.dataset.postSlug ?? "");
@@ -395,15 +479,28 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
     sortedCards.forEach((card) => {
       postList?.insertBefore(card, topicEmpty ?? loadMore ?? null);
       const tags = (card.dataset.tags ?? "").split(" ").filter(Boolean);
-      const isVisible = selectedKey === "" || tags.includes(selectedKey);
+      const cardPath = normalizePath(card.dataset.postHref ?? card.getAttribute("href") ?? "");
+      const matchesTopic = selectedKey === "" || tags.includes(selectedKey);
+      const matchesSearch = !isSearchFiltered || searchOrder.has(cardPath);
+      const isVisible = matchesTopic && matchesSearch;
       card.classList.toggle("is-hidden", !isVisible);
       if (isVisible) visibleCount += 1;
     });
 
+    if (emptyTitle && emptyText && topicEmpty) {
+      emptyTitle.textContent = isSearchFiltered
+        ? topicEmpty.dataset.searchEmptyTitle ?? ""
+        : topicEmpty.dataset.topicEmptyTitle ?? "";
+      emptyText.textContent = isSearchFiltered
+        ? topicEmpty.dataset.searchEmptyText ?? ""
+        : topicEmpty.dataset.topicEmptyText ?? "";
+    }
+
     topicEmpty?.classList.toggle("is-hidden", visibleCount > 0);
-    loadMore?.classList.toggle("is-hidden", visibleCount === 0 || isTopicFiltered);
-    pinnedSection?.classList.toggle("is-hidden", isTopicFiltered);
+    loadMore?.classList.toggle("is-hidden", visibleCount === 0 || isTopicFiltered || isSearchFiltered);
+    pinnedSection?.classList.toggle("is-hidden", isTopicFiltered || isSearchFiltered);
     flowLayout?.classList.toggle("is-topic-filtered", isTopicFiltered);
+    flowLayout?.classList.toggle("is-search-filtered", isSearchFiltered);
 
     if (updateUrl) {
       const url = new URL(window.location.href);
@@ -412,8 +509,18 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
       } else {
         url.searchParams.delete("tag");
       }
+      if (activeSearchQuery) {
+        url.searchParams.set("q", activeSearchQuery);
+      } else {
+        url.searchParams.delete("q");
+      }
       window.history.replaceState({}, "", url);
     }
+  };
+
+  const setTopicFilter = (topic: string, updateUrl = true) => {
+    activeTopic = topic;
+    applyFilters(updateUrl);
   };
 
   topicButtons.forEach((button) => {
@@ -422,6 +529,19 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
     });
   });
 
-  const initialTag = new URLSearchParams(window.location.search).get("tag") ?? "";
+  searchBox?.addEventListener("input", () => {
+    window.clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(() => {
+      runSearch(searchBox.value);
+    }, 180);
+  });
+
+  const initialParams = new URLSearchParams(window.location.search);
+  const initialTag = initialParams.get("tag") ?? "";
+  const initialQuery = initialParams.get("q") ?? "";
   if (initialTag) setTopicFilter(initialTag, false);
+  if (initialQuery && searchBox) {
+    searchBox.value = initialQuery;
+    runSearch(initialQuery);
+  }
 </script>
