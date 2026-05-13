@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K 现场 RoPE 与 DSV4 Value 旋转：GPU Kernel 工程代价</title>
+<link rel="stylesheet" href="Reference/katex/katex.min.css">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #eef6f4;
+  --bg-warm: #f7f9f3;
+  --surface: #ffffff;
+  --surface-soft: rgba(255, 255, 255, 0.76);
+  --ink: #111827;
+  --muted: #657084;
+  --line: #d8e1ea;
+  --accent: #2f7f78;
+  --accent-strong: #1f6c66;
+  --accent-soft: #d8fbf2;
+  --blue: #3b65a7;
+  --red: #a94a4a;
+  --amber: #a87015;
+  --code-bg: #f6f8fb;
+  --code-ink: #162033;
+  --max: 1320px;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    linear-gradient(90deg, rgba(17, 24, 39, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(17, 24, 39, 0.035) 1px, transparent 1px),
+    radial-gradient(circle at 12% 8%, rgba(103, 232, 249, 0.12), transparent 28%),
+    radial-gradient(circle at 86% 22%, rgba(167, 243, 107, 0.10), transparent 26%),
+    #eef3f7;
+  background-size: 42px 42px, 42px 42px, auto, auto, auto;
+  color: var(--ink);
+  overflow-x: hidden;
+  line-height: 1.72;
+  letter-spacing: 0;
+}
+a { color: var(--accent-strong); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+code, pre, .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; }
+.site-shell { max-width: var(--max); margin: 0 auto; padding: 18px 18px 28px; }
+.topbar {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 0;
+  padding: 12px 16px;
+  background: rgba(246, 247, 251, 0.86);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(16px);
+}
+.brand { display: inline-flex; align-items: center; gap: 11px; min-width: 0; text-decoration: none; color: var(--ink); }
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid #97eadf;
+  border-radius: 9px;
+  background: #d9fbf3;
+  color: var(--accent-strong);
+  font-weight: 800;
+  font-size: 12px;
+}
+.brand strong { font-size: 16px; letter-spacing: 0; }
+.nav { display: flex; align-items: center; justify-content: flex-end; gap: 14px; color: var(--muted); font-size: 14px; font-weight: 520; white-space: nowrap; }
+.nav a { color: var(--muted); text-decoration: none; }
+.nav a[aria-current="page"] { color: var(--ink); font-weight: 760; }
+.post-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 980px) 260px;
+  gap: 34px;
+  align-items: start;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+.post-page {
+  width: 100%;
+  max-width: 980px;
+  margin: 0;
+  padding: 38px 0 32px;
+  min-width: 0;
+}
+.post-toc { position: sticky; top: 18px; padding-top: 120px; }
+.post-toc-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 18px 52px rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(14px);
+}
+.post-toc-card h2 {
+  margin: 0;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+.post-toc-card nav { max-height: calc(100vh - 190px); overflow-y: auto; padding: 10px 8px 12px; }
+.post-toc-card a {
+  display: block;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+  padding: 7px 8px;
+  text-decoration: none;
+}
+.post-toc-card a:hover, .post-toc-card a:focus-visible { background: rgba(216, 251, 242, 0.78); color: var(--accent-strong); outline: none; }
+.post-toc-card a.depth-3 { padding-left: 20px; font-size: 12px; }
+.post-header {
+  max-width: 100%;
+  min-width: 0;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--line);
+}
+.post-kicker { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; max-width: 100%; min-width: 0; }
+.post-kicker span {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--muted);
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 680;
+}
+.post-header h1 {
+  max-width: 940px;
+  margin: 0;
+  font-size: clamp(28px, 3vw, 38px);
+  line-height: 1.08;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+.post-header p {
+  max-width: 880px;
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.62;
+}
+.post-content {
+  display: flow-root;
+  max-width: 100%;
+  min-width: 0;
+  margin-top: 28px;
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.72;
+}
+.post-content h2 {
+  margin: 44px 0 14px;
+  font-size: 28px;
+  line-height: 1.22;
+  letter-spacing: 0;
+  scroll-margin-top: 24px;
+}
+.post-content h3 { margin: 30px 0 12px; font-size: 22px; line-height: 1.25; letter-spacing: 0; scroll-margin-top: 24px; }
+.post-content h4 { margin: 24px 0 10px; font-size: 18px; line-height: 1.3; letter-spacing: 0; }
+.post-content p, .post-content ul, .post-content ol, .post-content blockquote, .post-content figure, .post-content table, .post-content .katex-display { margin-top: 0; margin-bottom: 18px; }
+.post-content p { overflow-wrap: anywhere; }
+.lead { font-size: 18px; color: #303b4a; }
+.post-content code {
+  border: 1px solid rgba(216, 225, 234, 0.8);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.62);
+  padding: 1px 4px;
+  font-size: 0.9em;
+}
+.post-content pre {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--code-ink);
+  line-height: 1.55;
+  font-size: 13px;
+}
+.post-content pre code { border: 0; background: transparent; padding: 0; }
+.post-content table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.post-content th, .post-content td { border-bottom: 1px solid var(--line); padding: 8px 9px; vertical-align: top; min-width: 130px; }
+.post-content th { background: rgba(255, 255, 255, 0.68); font-weight: 760; }
+.post-content figure {
+  max-width: 100%;
+  margin: 22px 0 24px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  overflow-x: auto;
+}
+.post-content figcaption { margin-top: 10px; color: var(--muted); font-size: 13px; line-height: 1.48; }
+.post-content .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 8px 0;
+}
+.equation {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.72);
+  padding: 12px 14px;
+  margin: 16px 0 18px;
+  overflow-x: auto;
+}
+.note, .warning, .proof-box {
+  border-left: 3px solid #9ceadf;
+  border-radius: 0 8px 8px 0;
+  background: rgba(255, 255, 255, 0.62);
+  padding: 12px 14px;
+  margin: 18px 0;
+}
+.warning { border-left-color: #f0bc72; background: rgba(255, 248, 235, 0.82); }
+.proof-box { border-left-color: #a7b9ee; background: rgba(243, 247, 255, 0.82); }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 18px 0; }
+.tri-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+.card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.66);
+  padding: 14px;
+}
+.card h3, .card h4 { margin-top: 0; }
+.card strong.metric { display: block; font-size: 22px; line-height: 1.1; color: var(--accent-strong); margin-bottom: 4px; }
+.subtle { color: var(--muted); }
+.ref {
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--accent-strong);
+  font-weight: 760;
+  text-decoration: none;
+  font-size: 0.82em;
+}
+.tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.72);
+  color: var(--muted);
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 720;
+  white-space: nowrap;
+}
+.refs li { margin: 9px 0; padding-left: 2px; }
+svg.diagram {
+  display: block;
+  width: 100%;
+  min-width: 760px;
+  height: auto;
+}
+.svg-title { font: 700 18px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #111827; }
+.svg-label { font: 650 13px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #172033; }
+.svg-small { font: 12px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #657084; }
+.svg-code { font: 12px "SFMono-Regular", Consolas, monospace; fill: #172033; }
+.lane { fill: #f7fafc; stroke: #d8e1ea; }
+.ok { fill: #d8fbf2; stroke: #90d7ca; }
+.blue { fill: #e8f0ff; stroke: #9fb4df; }
+.warm { fill: #fff3d6; stroke: #dfb865; }
+.red { fill: #ffe8e8; stroke: #df9b9b; }
+.neutral { fill: #ffffff; stroke: #d8e1ea; }
+@media (max-width: 1040px) {
+  .site-shell { padding: 12px 12px 24px; }
+  .post-shell { grid-template-columns: 1fr; gap: 12px; }
+  .post-toc { position: static; padding-top: 0; order: -1; }
+  .post-toc-card nav { max-height: none; }
+  .post-page { padding-top: 22px; }
+  .grid, .tri-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .topbar { align-items: flex-start; flex-direction: column; }
+  .nav { flex-wrap: wrap; white-space: normal; justify-content: flex-start; }
+  .post-header h1 { font-size: 28px; }
+  .post-content { font-size: 16px; }
+  .post-content h2 { font-size: 24px; }
+  .post-content h3 { font-size: 20px; }
+  svg.diagram { min-width: 720px; }
+}
+</style>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="topbar">
+      <a class="brand" href="../zh/">
+        <span class="brand-mark">HY</span>
+        <strong>Houyi AI Research Flow</strong>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="../zh/">首页</a>
+        <a href="../zh/reading-notes/" aria-current="page">阅读笔记</a>
+        <a href="../zh/papers/">论文</a>
+        <a href="../zh/open-source/">开源</a>
+      </nav>
+    </header>
+
+    <div class="post-shell">
+      <article class="post-page">
+        <header class="post-header">
+          <div class="post-kicker">
+            <span>GPU Kernel</span>
+            <span>RoPE / KV Cache</span>
+            <span>DeepSeek-V4</span>
+            <span>更新：2026-05-13</span>
+          </div>
+          <h1>K 现场 RoPE 与 DSV4 Value 旋转：为什么“算力够”仍可能拖慢 Decode Attention</h1>
+          <p>
+            这篇只讨论工程执行，不争论模型语义。核心问题是：位置变换如果从 cache 写入侧或输出侧，被搬进 per-KV tile 的热循环，它会占用哪些 GPU 资源，卡住哪条依赖链，以及为什么 memory-bound 并不意味着这些工作可以无代价消失。
+          </p>
+        </header>
+
+        <div class="post-content">
+          <section id="sec-1">
+            <h2>1. 问题复述：两个问题是一张账本</h2>
+          <p class="lead">
+            K 现场 RoPE 和 DSV4 value own-position inverse / relative rotate 的共同点，不是“都多做一点旋转”这么浅，而是它们都把原本在 <strong>cache 写入侧</strong> 或 <strong>输出向量侧</strong> 的位置变换，移动到了 attention kernel 的 per-KV tile 路径里。
+          </p>
+          <div class="grid">
+            <div class="card">
+              <h3>K 现场 RoPE</h3>
+              <p>标准路径写 cache 前就把 key 变成 ready-to-dot 的 <code>R(t)K_raw</code>。替代路径存 <code>K_raw</code>，decode 时按每个历史 token 的位置 <code>t</code> 现场旋转，再做 QK。</p>
+              <div class="equation"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msub><mi>K</mi><mrow><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">h</mi><mi mathvariant="normal">e</mi></mrow><mo separator="true">,</mo><mi>t</mi></mrow></msub><mo>=</mo><mi>R</mi><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo><msub><mi>K</mi><mrow><mrow><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">w</mi></mrow><mo separator="true">,</mo><mi>t</mi></mrow></msub><mo separator="true">,</mo><mspace width="2em"/><msub><mi>s</mi><mrow><mi>q</mi><mo separator="true">,</mo><mi>t</mi></mrow></msub><mo>=</mo><mo fence="true" stretchy="true" minsize="1.2em" maxsize="1.2em">(</mo><mi>R</mi><mo stretchy="false">(</mo><mi>q</mi><mo stretchy="false">)</mo><msub><mi>Q</mi><mi>q</mi></msub><msup><mo fence="true" stretchy="true" minsize="1.2em" maxsize="1.2em">)</mo><mi mathvariant="normal">⊤</mi></msup><msub><mi>K</mi><mrow><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">h</mi><mi mathvariant="normal">e</mi></mrow><mo separator="true">,</mo><mi>t</mi></mrow></msub></mrow><annotation encoding="application/x-tex">K_{\mathrm{cache},t}=R(t)K_{\mathrm{raw},t},\qquad s_{q,t}=\bigl(R(q)Q_q\bigr)^\top K_{\mathrm{cache},t}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.9694em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0715em;">K</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0715em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight">cache</span></span><span class="mpunct mtight">,</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:1.0361em;vertical-align:-0.2861em;"></span><span class="mord mathnormal" style="margin-right:0.0077em;">R</span><span class="mopen">(</span><span class="mord mathnormal">t</span><span class="mclose">)</span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0715em;">K</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:-0.0715em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight" style="margin-right:0.0139em;">raw</span></span><span class="mpunct mtight">,</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mpunct">,</span><span class="mspace" style="margin-right:2em;"></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathnormal">s</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0359em;">q</span><span class="mpunct mtight">,</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:1.439em;vertical-align:-0.35em;"></span><span class="mopen"><span class="delimsizing size1">(</span></span><span class="mord mathnormal" style="margin-right:0.0077em;">R</span><span class="mopen">(</span><span class="mord mathnormal" style="margin-right:0.0359em;">q</span><span class="mclose">)</span><span class="mord"><span class="mord mathnormal">Q</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0359em;">q</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mclose"><span class="mclose"><span class="delimsizing size1">)</span></span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:1.089em;"><span style="top:-3.3029em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">⊤</span></span></span></span></span></span></span></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0715em;">K</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.0715em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight">cache</span></span><span class="mpunct mtight">,</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span></span></span></span></span></div>
+            </div>
+            <div class="card">
+              <h3>DSV4 Value own-position inverse</h3>
+              <p>DSV4 的 KV entry 同时是 key 和 value，partial RoPE 作用在最后 64 维。当前实现是 attention 输出后按 query 位置做一次 inverse；替代方案则是每个 value 按自己的位置或相对位置变换后再进 PV。</p>
+              <div class="equation"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><msub><mi>o</mi><mi>q</mi></msub><mo>=</mo><mi>R</mi><mo stretchy="false">(</mo><mo>−</mo><mi>q</mi><mo stretchy="false">)</mo><munder><mo>∑</mo><mi>t</mi></munder><msub><mi>α</mi><mrow><mi>q</mi><mo separator="true">,</mo><mi>t</mi></mrow></msub><mtext> </mtext><mi>R</mi><mo stretchy="false">(</mo><mi>t</mi><mo stretchy="false">)</mo><msub><mi>c</mi><mi>t</mi></msub><mo>=</mo><munder><mo>∑</mo><mi>t</mi></munder><msub><mi>α</mi><mrow><mi>q</mi><mo separator="true">,</mo><mi>t</mi></mrow></msub><mtext> </mtext><mi>R</mi><mo stretchy="false">(</mo><mi>t</mi><mo>−</mo><mi>q</mi><mo stretchy="false">)</mo><msub><mi>c</mi><mi>t</mi></msub></mrow><annotation encoding="application/x-tex">o_q=R(-q)\sum_t \alpha_{q,t}\,R(t)c_t=\sum_t\alpha_{q,t}\,R(t-q)c_t</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.7167em;vertical-align:-0.2861em;"></span><span class="mord"><span class="mord mathnormal">o</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0359em;">q</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:2.3em;vertical-align:-1.25em;"></span><span class="mord mathnormal" style="margin-right:0.0077em;">R</span><span class="mopen">(</span><span class="mord">−</span><span class="mord mathnormal" style="margin-right:0.0359em;">q</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mop op-limits"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.05em;"><span style="top:-1.9em;margin-left:0em;"><span class="pstrut" style="height:3.05em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">t</span></span></span><span style="top:-3.05em;"><span class="pstrut" style="height:3.05em;"></span><span><span class="mop op-symbol large-op">∑</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:1.25em;"><span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0037em;">α</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:-0.0037em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0359em;">q</span><span class="mpunct mtight">,</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal" style="margin-right:0.0077em;">R</span><span class="mopen">(</span><span class="mord mathnormal">t</span><span class="mclose">)</span><span class="mord"><span class="mord mathnormal">c</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">t</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:2.3em;vertical-align:-1.25em;"></span><span class="mop op-limits"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.05em;"><span style="top:-1.9em;margin-left:0em;"><span class="pstrut" style="height:3.05em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">t</span></span></span><span style="top:-3.05em;"><span class="pstrut" style="height:3.05em;"></span><span><span class="mop op-symbol large-op">∑</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:1.25em;"><span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.0037em;">α</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:-0.0037em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight" style="margin-right:0.0359em;">q</span><span class="mpunct mtight">,</span><span class="mord mathnormal mtight">t</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord mathnormal" style="margin-right:0.0077em;">R</span><span class="mopen">(</span><span class="mord mathnormal">t</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">−</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:1em;vertical-align:-0.25em;"></span><span class="mord mathnormal" style="margin-right:0.0359em;">q</span><span class="mclose">)</span><span class="mord"><span class="mord mathnormal">c</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight">t</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span></span></div>
+            </div>
+          </div>
+          <p>
+            如果只看数学，K 现场 RoPE 可以等价于 pre-RoPE cache；value own-position inverse 则是另一个模型语义选择。本文不评判语义，只看工程：这些旋转放在 QK/PV 热循环的哪个位置，以及它们是否破坏 tile 复用。RoFormer 论文给出了 RoPE 的基本相对位置内积形式。<a class="ref" href="#ref-roformer">[RoPE]</a>
+          </p>
+          <div class="proof-box">
+            <strong>本文推导边界：</strong>后文的 FLOP、shared traffic 和延迟图是估算模型，用来定位代价来源，不等价于某张卡上的 Nsight profile。所有“会慢/可能慢”的说法都限定在当前 DSV4 sparse attention 形态和常见 IO-aware tile kernel 组织下。
+          </div>
+
+          </section>
+          <section id="sec-2">
+            <h2>2. GPU 执行模型：memory-bound 不是只有 HBM</h2>
+          <p>
+            CUDA kernel 的基本单位是 thread block。一个 block 被调度到 SM 上，block 内线程可以共享 shared memory，并通过 <code>__syncthreads()</code> 这类同步点协调访问。CUDA Programming Guide 明确说明 shared memory 对 block 内线程可见、生命周期随 block，<code>__syncthreads()</code> 是 block 级 barrier。<a class="ref" href="#ref-cuda-memory">[CUDA-Mem]</a><a class="ref" href="#ref-cuda-sync">[CUDA-Sync]</a>
+          </p>
+          <p>
+            一个 attention tile 在 GPU 上大致会经过 HBM/L2、shared memory、register、CUDA Core/SFU、Tensor Core、warp scheduler 这些层级。Hopper Tuning Guide 给出 H100 的片上资源轮廓：每 SM shared memory 最高 228 KB，L2 50 MB，HBM3 最高约 3 TB/s；H100 产品规格页还列出 3.35 TB/s 或 3.9 TB/s 的 GPU memory bandwidth，以及高得多的 Tensor Core 峰值。<a class="ref" href="#ref-hopper">[Hopper]</a><a class="ref" href="#ref-h100">[H100]</a>
+          </p>
+          <div class="tri-grid">
+            <div class="card"><strong class="metric">HBM/L2</strong><p class="subtle">负责把 KV cache tile 搬到 SM 附近。decode attention 通常对这层敏感。</p></div>
+            <div class="card"><strong class="metric">SMEM/Register</strong><p class="subtle">负责 tile 复用。额外 shared read/write 或 register fragment 会影响 occupancy 和 bank conflict。</p></div>
+            <div class="card"><strong class="metric">CUDA/Tensor Core</strong><p class="subtle">Tensor Core 跑 GEMM，CUDA Core/SFU 跑 softmax、exp、地址计算、RoPE 旋转等非 MMA 工作。</p></div>
+          </div>
+          <figure>
+            <svg class="diagram" viewBox="0 0 1080 520" role="img" aria-label="GPU hierarchy concrete diagram">
+              <rect x="24" y="24" width="1032" height="456" rx="8" fill="#fff" stroke="#d8e1ea"/>
+              <text x="52" y="62" class="svg-title">一个 decode attention tile 在 GPU 上经过的资源</text>
+              <rect x="70" y="108" width="170" height="76" rx="8" class="blue"/><text x="100" y="140" class="svg-label">HBM</text><text x="100" y="162" class="svg-small">KV cache / cos table</text>
+              <rect x="292" y="108" width="150" height="76" rx="8" class="ok"/><text x="324" y="140" class="svg-label">L2</text><text x="324" y="162" class="svg-small">跨 SM cache</text>
+              <rect x="500" y="86" width="470" height="310" rx="10" fill="#f8fbfd" stroke="#d8e1ea"/>
+              <text x="530" y="124" class="svg-label">Streaming Multiprocessor</text>
+              <rect x="530" y="152" width="150" height="76" rx="8" class="warm"/><text x="554" y="184" class="svg-label">shared memory</text><text x="554" y="206" class="svg-small">kv_shared tile</text>
+              <rect x="710" y="152" width="130" height="76" rx="8" class="neutral"/><text x="738" y="184" class="svg-label">registers</text><text x="738" y="206" class="svg-small">fragments / acc</text>
+              <rect x="530" y="260" width="150" height="76" rx="8" class="red"/><text x="554" y="292" class="svg-label">CUDA Core / SFU</text><text x="554" y="314" class="svg-small">RoPE, exp, scale</text>
+              <rect x="710" y="260" width="130" height="76" rx="8" class="blue"/><text x="738" y="292" class="svg-label">Tensor Core</text><text x="738" y="314" class="svg-small">QK / PV MMA</text>
+              <rect x="862" y="206" width="82" height="76" rx="8" class="neutral"/><text x="880" y="238" class="svg-label">warp</text><text x="880" y="260" class="svg-small">scheduler</text>
+              <path d="M240 146 L292 146" stroke="#657084" stroke-width="2" marker-end="url(#arrA)"/>
+              <path d="M442 146 L530 188" stroke="#657084" stroke-width="2" marker-end="url(#arrA)"/>
+              <path d="M680 190 L710 190" stroke="#657084" stroke-width="2" marker-end="url(#arrA)"/>
+              <path d="M680 298 L710 298" stroke="#657084" stroke-width="2" marker-end="url(#arrA)"/>
+              <path d="M840 298 L862 250" stroke="#657084" stroke-width="2" marker-end="url(#arrA)"/>
+              <path d="M840 190 L862 226" stroke="#657084" stroke-width="2" marker-end="url(#arrA)"/>
+              <text x="70" y="436" class="svg-small">关键：现场旋转如果发生在 tile 进入 shared memory 之后，就不再是“HBM 等待时顺手算一下”，而会占用 SM 内部执行资源。</text>
+              <defs><marker id="arrA" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#657084"/></marker></defs>
+            </svg>
+            <figcaption>图 1：把 memory-bound 简化成 HBM vs FLOPs 会漏掉片上路径。shared memory、register、CUDA Core 和 Tensor Core 的相互喂数同样能决定 kernel 延迟。</figcaption>
+          </figure>
+          <p>
+            FlashAttention 的 IO-aware 分析说明 attention 性能要数 HBM 与片上 SRAM 之间的读写，而不是只数 FLOPs；CUTLASS 的 GEMM 文档也强调高性能 GEMM 依赖分层 tiling、shared memory/register reuse 和 pipelining。<a class="ref" href="#ref-flash">[FA-IO]</a><a class="ref" href="#ref-flash-softmax">[FA-Softmax]</a><a class="ref" href="#ref-cutlass">[CUTLASS]</a><a class="ref" href="#ref-cutlass-pipe">[CUTLASS-Pipe]</a>
+          </p>
+
+          </section>
+          <section id="sec-3">
+            <h2>3. DSV4 当前热循环：一份 kv_shared 连续喂两个 GEMM</h2>
+          <p>
+            DeepSeek-V4 报告说 CSA/HCA 使用 shared Key-Value MQA：compressed KV entry 在 core attention 中同时作为 key 和 value；partial RoPE 作用在 query、KV entry 和 core attention output 的最后 64 维。<a class="ref" href="#ref-dsv4">[DSV4]</a><a class="ref" href="#ref-dsv4-shared-kv">[DSV4-KV]</a>
+          </p>
+          <p>
+            本地 reference implementation 也很直接：<code>inference/model.py</code> 中 q 和 kv 先分别 <code>apply_rotary_emb</code>，然后进入 <code>sparse_attn</code>，输出 <code>o</code> 的 RoPE slice 再 <code>inverse=True</code>。<a class="ref" href="#ref-local-model">[Code-QKVO]</a> 在 <code>inference/kernel.py</code> 中，<code>kv_shared</code> 被 gather 之后先用于 <code>T.gemm(q_shared, kv_shared, ... transpose_B=True)</code>，随后同一份 <code>kv_shared</code> 被 <code>T.gemm(acc_s_cast, kv_shared, acc_o)</code> 用作 value。<a class="ref" href="#ref-local-kernel">[Code-Kernel]</a><a class="ref" href="#ref-vllm">[vLLM]</a>
+          </p>
+          <pre><code>for each topk tile:
+    idxs       = topk_idxs[by, bx, tile]
+    kv_shared  = gather(kv_cache, idxs)          # one loaded representation
+    acc_s      = q_shared @ kv_shared.T          # QK, kv_shared as K
+    p          = online_softmax_update(acc_s)
+    acc_o     += p @ kv_shared                   # PV, same kv_shared as V</code></pre>
+          <figure>
+            <svg class="diagram" viewBox="0 0 1080 500" role="img" aria-label="DSV4 sparse attention hot loop">
+              <rect x="24" y="24" width="1032" height="428" rx="8" fill="#fff" stroke="#d8e1ea"/>
+              <text x="52" y="62" class="svg-title">当前 DSV4 tile 流水：load once, consume twice</text>
+              <rect x="70" y="112" width="140" height="72" rx="8" class="blue"/><text x="104" y="144" class="svg-label">KV cache</text><text x="104" y="166" class="svg-small">R(t)c_t</text>
+              <rect x="270" y="104" width="170" height="88" rx="8" class="warm"/><text x="304" y="138" class="svg-label">kv_shared</text><text x="304" y="160" class="svg-small">block=64, d=512</text><text x="304" y="180" class="svg-small">不改写表示</text>
+              <rect x="520" y="82" width="150" height="74" rx="8" class="blue"/><text x="552" y="114" class="svg-label">QK GEMM</text><text x="552" y="136" class="svg-small">Tensor Core</text>
+              <rect x="520" y="210" width="150" height="74" rx="8" class="red"/><text x="552" y="242" class="svg-label">softmax</text><text x="552" y="264" class="svg-small">CUDA Core</text>
+              <rect x="750" y="210" width="150" height="74" rx="8" class="blue"/><text x="782" y="242" class="svg-label">PV GEMM</text><text x="782" y="264" class="svg-small">Tensor Core</text>
+              <rect x="940" y="210" width="68" height="74" rx="8" class="neutral"/><text x="956" y="242" class="svg-label">acc_o</text><text x="954" y="264" class="svg-small">FP32</text>
+              <path d="M210 148 L270 148" stroke="#657084" stroke-width="2" marker-end="url(#arrB)"/>
+              <path d="M440 130 L520 118" stroke="#657084" stroke-width="2" marker-end="url(#arrB)"/>
+              <path d="M670 247 L750 247" stroke="#657084" stroke-width="2" marker-end="url(#arrB)"/>
+              <path d="M900 247 L940 247" stroke="#657084" stroke-width="2" marker-end="url(#arrB)"/>
+              <path d="M355 192 C410 330 670 350 825 284" stroke="#1f6c66" stroke-width="3" fill="none" marker-end="url(#arrG)"/>
+              <text x="376" y="370" class="svg-label">同一份 kv_shared：先当 K，后当 V；中间不需要 representation transform</text>
+              <path d="M595 156 L595 210" stroke="#657084" stroke-width="2" marker-end="url(#arrB)"/>
+              <defs>
+                <marker id="arrB" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#657084"/></marker>
+                <marker id="arrG" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#1f6c66"/></marker>
+              </defs>
+            </svg>
+            <figcaption>图 2：当前实现的好处非常具体：<code>kv_shared</code> 进入 shared memory 后无需变形，两个 Tensor Core GEMM 都能消费它。</figcaption>
+          </figure>
+
+          </section>
+          <section id="sec-4">
+            <h2>4. 为什么现场旋转不是“免费”：它插进 critical path</h2>
+          <p>
+            K 现场 RoPE 与 value own-position inverse 的第一层代价是 CUDA Core/SFU 上的旋转计算。但更关键的是位置：如果旋转发生在 QK/PV 中间，PV 的 Tensor Core 不能在 value representation 准备好之前启动。
+          </p>
+          <div class="equation"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mtable rowspacing="0.25em" columnalign="right left" columnspacing="0em"><mtr><mtd><mstyle scriptlevel="0" displaystyle="true"><msub><mi>T</mi><mrow><mi mathvariant="normal">c</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">t</mi></mrow></msub></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="true"><mrow><mrow></mrow><mo>≈</mo><msub><mi>T</mi><mrow><mi mathvariant="normal">l</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">d</mi></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mi mathvariant="normal">Q</mi><mi mathvariant="normal">K</mi></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mi mathvariant="normal">s</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">m</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">x</mi></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mi mathvariant="normal">P</mi><mi mathvariant="normal">V</mi></mrow></msub><mo separator="true">,</mo></mrow></mstyle></mtd></mtr><mtr><mtd><mstyle scriptlevel="0" displaystyle="true"><msub><mi>T</mi><mrow><mi mathvariant="normal">w</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">h</mi><mtext> </mtext><mi mathvariant="normal">t</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">m</mi></mrow></msub></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="true"><mrow><mrow></mrow><mo>≈</mo><msub><mi>T</mi><mrow><mi mathvariant="normal">l</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">d</mi></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mi mathvariant="normal">Q</mi><mi mathvariant="normal">K</mi></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mi mathvariant="normal">s</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">m</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">x</mi></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mi mathvariant="normal">t</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">f</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">m</mi></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mi mathvariant="normal">P</mi><mi mathvariant="normal">V</mi></mrow></msub><mo>+</mo><msub><mi>T</mi><mrow><mi mathvariant="normal">s</mi><mi mathvariant="normal">y</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">c</mi></mrow></msub><mi mathvariant="normal">.</mi></mrow></mstyle></mtd></mtr></mtable><annotation encoding="application/x-tex">\begin{aligned}T_{\mathrm{current}} &amp;\approx T_{\mathrm{load}} + T_{\mathrm{QK}} + T_{\mathrm{softmax}} + T_{\mathrm{PV}},\\ T_{\mathrm{with\ transform}} &amp;\approx T_{\mathrm{load}} + T_{\mathrm{QK}} + T_{\mathrm{softmax}} + T_{\mathrm{transform}} + T_{\mathrm{PV}} + T_{\mathrm{sync}}.\end{aligned}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:2.7em;vertical-align:-1.1em;"></span><span class="mord"><span class="mtable"><span class="col-align-r"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.6em;"><span style="top:-3.76em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.2806em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight">current</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span><span style="top:-2.26em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight">with</span><span class="mspace mtight"><span class="mtight"> </span></span><span class="mord mathrm mtight">transform</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:1.1em;"><span></span></span></span></span></span><span class="col-align-l"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.6em;"><span style="top:-3.76em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord"></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight">load</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3283em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight">QK</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight">softmax</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3283em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight" style="margin-right:0.0139em;">PV</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mpunct">,</span></span></span><span style="top:-2.26em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord"></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight">load</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3283em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight">QK</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight">softmax</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3361em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight">transform</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3283em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight" style="margin-right:0.0139em;">PV</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.15em;"><span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.1389em;">T</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.1514em;"><span style="top:-2.55em;margin-left:-0.1389em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathrm mtight">sync</span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mord">.</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:1.1em;"><span></span></span></span></span></span></span></span></span></span></span></span></div>
+          <p>
+            上式不是性能模型的全部，但它抓住了 critical path 的本质：<code>T_transform</code> 如果依赖 QK 读完旧表示，又被 PV 等待，那么它就不是能被 HBM latency 完全覆盖的后台工作。Hopper 的 TMA/async copy 能帮助 global-to-shared 的搬运与计算重叠，但数据被消费前仍需要同步对象保证 ready。<a class="ref" href="#ref-cuda-async">[CUDA-Async]</a><a class="ref" href="#ref-hopper">[Hopper]</a>
+          </p>
+          <div class="grid">
+            <div class="card">
+              <h3>K 现场 RoPE 的位置</h3>
+              <p>如果 cache 存 raw K，QK GEMM 前需要把 raw K fragment 变成 <code>R(t)K</code>。这可能在 shared tile 上做，也可能在寄存器 fragment 中做；二者都插在 load 和 QK 之间。</p>
+            </div>
+            <div class="card">
+              <h3>V 现场 inverse 的位置</h3>
+              <p>DSV4 当前 Q-position inverse 是输出侧一次处理；own-position inverse 若不多存一份，则要在 QK 后、PV 前把同一份 tile 从 K 表示改成 V 表示。</p>
+            </div>
+          </div>
+          <figure>
+            <svg class="diagram" viewBox="0 0 1080 540" role="img" aria-label="critical path of transform">
+              <rect x="24" y="24" width="1032" height="468" rx="8" fill="#fff" stroke="#d8e1ea"/>
+              <text x="52" y="62" class="svg-title">现场旋转落在热路径的三种位置</text>
+              <text x="70" y="116" class="svg-label">A. 标准 DSV4</text>
+              <rect x="210" y="92" width="90" height="52" rx="7" class="blue"/><text x="236" y="124" class="svg-code">load</text>
+              <rect x="320" y="92" width="90" height="52" rx="7" class="blue"/><text x="346" y="124" class="svg-code">QK</text>
+              <rect x="430" y="92" width="110" height="52" rx="7" class="red"/><text x="454" y="124" class="svg-code">softmax</text>
+              <rect x="560" y="92" width="90" height="52" rx="7" class="blue"/><text x="586" y="124" class="svg-code">PV</text>
+              <rect x="670" y="92" width="118" height="52" rx="7" class="ok"/><text x="692" y="124" class="svg-code">R(-q)o</text>
+              <text x="810" y="124" class="svg-small">输出侧一次 inverse，不改 kv_shared</text>
+
+              <text x="70" y="232" class="svg-label">B. raw-K 现场 RoPE</text>
+              <rect x="210" y="208" width="90" height="52" rx="7" class="blue"/><text x="236" y="240" class="svg-code">load</text>
+              <rect x="320" y="208" width="124" height="52" rx="7" class="warm"/><text x="344" y="240" class="svg-code">rotate K</text>
+              <rect x="464" y="208" width="90" height="52" rx="7" class="blue"/><text x="490" y="240" class="svg-code">QK</text>
+              <rect x="574" y="208" width="110" height="52" rx="7" class="red"/><text x="598" y="240" class="svg-code">softmax</text>
+              <rect x="704" y="208" width="90" height="52" rx="7" class="blue"/><text x="730" y="240" class="svg-code">PV</text>
+              <text x="816" y="240" class="svg-small">QK 等 K-ready；若用寄存器 fragment 会增加 live values</text>
+
+              <text x="70" y="348" class="svg-label">C. own-position V</text>
+              <rect x="210" y="324" width="90" height="52" rx="7" class="blue"/><text x="236" y="356" class="svg-code">load</text>
+              <rect x="320" y="324" width="90" height="52" rx="7" class="blue"/><text x="346" y="356" class="svg-code">QK</text>
+              <rect x="430" y="324" width="94" height="52" rx="7" class="red"/><text x="448" y="356" class="svg-code">barrier</text>
+              <rect x="544" y="324" width="134" height="52" rx="7" class="warm"/><text x="564" y="356" class="svg-code">rotate V</text>
+              <rect x="698" y="324" width="94" height="52" rx="7" class="red"/><text x="716" y="356" class="svg-code">barrier</text>
+              <rect x="812" y="324" width="90" height="52" rx="7" class="blue"/><text x="838" y="356" class="svg-code">PV</text>
+              <text x="210" y="438" class="svg-small">黄色阶段不是 HBM load 的附属品：它消耗 shared memory 读写、CUDA Core/SFU、寄存器，并被 PV 依赖。</text>
+              <defs><marker id="arrC" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#657084"/></marker></defs>
+            </svg>
+            <figcaption>图 3：这张图把“多一层 RoPE”放回真实流水里看：它的位置决定它能不能隐藏。</figcaption>
+          </figure>
+
+          <h3 id="sec-4-1">4.1 一个粗账本：为什么小计算也能碍事</h3>
+          <p>
+            以 DSV4 的 <code>head_dim=512</code>、<code>rope_head_dim=64</code>、本地 sparse kernel 的 <code>block=64</code> 为例，如果对一个 KV tile 的 RoPE 维做 value own-position inverse，需要处理 <code>64×64=4096</code> 个 BF16 元素，也就是 2048 个二维旋转 pair。<a class="ref" href="#ref-dsv4-config">[DSV4-Config]</a><a class="ref" href="#ref-local-kernel">[Code-Kernel]</a>
+          </p>
+          <div class="equation"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mtable rowspacing="0.25em" columnalign="right left" columnspacing="0em"><mtr><mtd><mstyle scriptlevel="0" displaystyle="true"><mtext>pairs/tile</mtext></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="true"><mrow><mrow></mrow><mo>=</mo><mn>64</mn><mo>×</mo><mo stretchy="false">(</mo><mn>64</mn><mi mathvariant="normal">/</mi><mn>2</mn><mo stretchy="false">)</mo><mo>=</mo><mn>2048</mn><mo separator="true">,</mo></mrow></mstyle></mtd></mtr><mtr><mtd><mstyle scriptlevel="0" displaystyle="true"><mtext>scalar ops/tile</mtext></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="true"><mrow><mrow></mrow><mo>≈</mo><mn>2048</mn><mo>×</mo><mo stretchy="false">(</mo><mn>4</mn><mtext> </mtext><mrow><mi mathvariant="normal">m</mi><mi mathvariant="normal">u</mi><mi mathvariant="normal">l</mi></mrow><mo>+</mo><mn>2</mn><mtext> </mtext><mrow><mi mathvariant="normal">a</mi><mi mathvariant="normal">d</mi><mi mathvariant="normal">d</mi></mrow><mo stretchy="false">)</mo><mo>≈</mo><mn>12,288</mn><mo separator="true">,</mo></mrow></mstyle></mtd></mtr><mtr><mtd><mstyle scriptlevel="0" displaystyle="true"><mtext>shared traffic/tile</mtext></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="true"><mrow><mrow></mrow><mo>≈</mo><mn>4096</mn><mo>×</mo><mn>2</mn><mtext> </mtext><mrow><mi mathvariant="normal">b</mi><mi mathvariant="normal">y</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">s</mi></mrow><mo>×</mo><mn>2</mn><mtext> </mtext><mrow><mo stretchy="false">(</mo><mi mathvariant="normal">r</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">d</mi><mo>+</mo><mi mathvariant="normal">w</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">t</mi><mi mathvariant="normal">e</mi><mo stretchy="false">)</mo></mrow><mo>≈</mo><mn>16</mn><mtext> </mtext><mrow><mi mathvariant="normal">K</mi><mi mathvariant="normal">B</mi></mrow><mi mathvariant="normal">.</mi></mrow></mstyle></mtd></mtr></mtable><annotation encoding="application/x-tex">\begin{aligned}\text{pairs/tile}&amp;=64\times(64/2)=2048,\\ \text{scalar ops/tile}&amp;\approx 2048\times(4\ \mathrm{mul}+2\ \mathrm{add})\approx 12{,}288,\\ \text{shared traffic/tile}&amp;\approx 4096\times2\ \mathrm{bytes}\times2\ \mathrm{(read+write)}\approx16\ \mathrm{KB}.\end{aligned}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:4.2em;vertical-align:-1.85em;"></span><span class="mord"><span class="mtable"><span class="col-align-r"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:2.35em;"><span style="top:-4.51em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord text"><span class="mord">pairs/tile</span></span></span></span><span style="top:-3.01em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord text"><span class="mord">scalar ops/tile</span></span></span></span><span style="top:-1.51em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord text"><span class="mord">shared traffic/tile</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:1.85em;"><span></span></span></span></span></span><span class="col-align-l"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:2.35em;"><span style="top:-4.51em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord"></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord">64</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mopen">(</span><span class="mord">64/2</span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord">2048</span><span class="mpunct">,</span></span></span><span style="top:-3.01em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord"></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord">2048</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mopen">(</span><span class="mord">4</span><span class="mspace"> </span><span class="mord"><span class="mord mathrm">mul</span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord">2</span><span class="mspace"> </span><span class="mord"><span class="mord mathrm">add</span></span><span class="mclose">)</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord">12</span><span class="mord"><span class="mpunct">,</span></span><span class="mord">288</span><span class="mpunct">,</span></span></span><span style="top:-1.51em;"><span class="pstrut" style="height:3em;"></span><span class="mord"><span class="mord"></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord">4096</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord">2</span><span class="mspace"> </span><span class="mord"><span class="mord mathrm">bytes</span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">×</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord">2</span><span class="mspace"> </span><span class="mord"><span class="mopen">(</span><span class="mord mathrm">read</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mord mathrm">write</span><span class="mclose">)</span></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">≈</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord">16</span><span class="mspace"> </span><span class="mord"><span class="mord mathrm">KB</span></span><span class="mord">.</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:1.85em;"><span></span></span></span></span></span></span></span></span></span></span></span></div>
+          <p>
+            12K scalar ops 相比 QK/PV 的 MMA FLOPs 看起来不大，这正是容易误判的地方。它小，但它发生在每个 selected tile 上；它用的不是 Tensor Core，而是 CUDA Core/SFU、LD/ST 和 shared memory；更重要的是它可能位于两个 Tensor Core GEMM 之间。因此“算力带宽比够”只能说明有理论空间，不能证明这段工作被隐藏。
+          </p>
+          <p>
+            当前 DSV4 的 Q-position inverse 更便宜，因为它只对最终输出的 RoPE 维做一次。decode 单 token 时，成本大致按 <code>heads × rope_dim</code> 算；own-position / relative value transform 则按 <code>selected_kv × rope_dim</code> 或 <code>num_tiles × block × rope_dim</code> 算。DSV4 报告还说明 RoPE 维以 BF16 存储，非 RoPE 维可 FP8，这会让 RoPE slice 的处理更像一条精度特殊的控制路径。<a class="ref" href="#ref-dsv4-storage">[DSV4-Store]</a>
+          </p>
+
+          </section>
+          <section id="sec-5">
+            <h2>5. 为什么常常需要 barrier：不是迷信同步，而是表示相位不同</h2>
+          <p>
+            如果只有一份 <code>kv_shared</code>，它在 QK 阶段的语义是 K 表示，例如 <code>R(t)c_t</code>；在 PV 阶段如果要 own-position inverse，它的语义要变成 value 表示，例如 <code>c_t</code> 或 <code>R(t-q)c_t</code>。同一 shared 地址在两个阶段代表不同东西，这就是 barrier 的来源。
+          </p>
+          <pre><code># hazard: one shared tile, two meanings
+warp group 0: ldmatrix(kv_shared)     # QK still expects R(t)c_t
+warp group 1: store(kv_shared)        # transform writes c_t
+warp group 2: ldmatrix(kv_shared)     # PV expects c_t</code></pre>
+          <p>
+            CUDA 的 shared-memory matmul 示例会在写入 shared 后同步，再计算；也会在下一轮覆盖 shared 前同步，确保上一轮消费者已经读完。<a class="ref" href="#ref-cuda-matmul">[CUDA-Matmul]</a><a class="ref" href="#ref-cuda-sync">[CUDA-Sync]</a> 这里同理：若要原地改写 tile，需要先确认所有 QK consumer 不再读旧表示，再确认 transform producer 已经写完新表示，PV consumer 才能读。
+          </p>
+          <figure>
+            <svg class="diagram" viewBox="0 0 1080 560" role="img" aria-label="shared memory barrier hazard">
+              <rect x="24" y="24" width="1032" height="488" rx="8" fill="#fff" stroke="#d8e1ea"/>
+              <text x="52" y="62" class="svg-title">barrier 的真实含义：同一 shared 地址的读写相位</text>
+              <rect x="70" y="110" width="210" height="330" rx="8" class="lane"/><text x="96" y="144" class="svg-label">shared memory addresses</text>
+              <rect x="105" y="176" width="140" height="42" rx="6" class="warm"/><text x="128" y="202" class="svg-code">kv[0:64]</text>
+              <rect x="105" y="238" width="140" height="42" rx="6" class="warm"/><text x="128" y="264" class="svg-code">kv[64:128]</text>
+              <rect x="105" y="300" width="140" height="42" rx="6" class="warm"/><text x="128" y="326" class="svg-code">kv[128:192]</text>
+              <text x="105" y="382" class="svg-small">同一地址不能一边被 QK 读旧表示，另一边被 transform 写新表示。</text>
+              <rect x="340" y="110" width="170" height="92" rx="8" class="blue"/><text x="372" y="144" class="svg-label">QK consumers</text><text x="372" y="166" class="svg-small">ldmatrix / MMA</text><text x="372" y="188" class="svg-small">read K representation</text>
+              <rect x="570" y="110" width="132" height="92" rx="8" class="red"/><text x="598" y="150" class="svg-label">barrier 1</text><text x="594" y="172" class="svg-small">QK read done</text>
+              <rect x="760" y="110" width="170" height="92" rx="8" class="warm"/><text x="788" y="144" class="svg-label">transform</text><text x="788" y="166" class="svg-small">read old / write new</text><text x="788" y="188" class="svg-small">CUDA Core + LD/ST</text>
+              <rect x="570" y="276" width="132" height="92" rx="8" class="red"/><text x="598" y="316" class="svg-label">barrier 2</text><text x="594" y="338" class="svg-small">V write done</text>
+              <rect x="760" y="276" width="170" height="92" rx="8" class="blue"/><text x="792" y="310" class="svg-label">PV consumers</text><text x="792" y="332" class="svg-small">MMA reads V repr</text>
+              <path d="M280 198 C300 160 320 156 340 156" stroke="#657084" stroke-width="2" fill="none" marker-end="url(#arrD)"/>
+              <path d="M510 156 L570 156" stroke="#657084" stroke-width="2" marker-end="url(#arrD)"/>
+              <path d="M702 156 L760 156" stroke="#657084" stroke-width="2" marker-end="url(#arrD)"/>
+              <path d="M845 202 C845 240 620 238 636 276" stroke="#657084" stroke-width="2" fill="none" marker-end="url(#arrD)"/>
+              <path d="M702 322 L760 322" stroke="#657084" stroke-width="2" marker-end="url(#arrD)"/>
+              <text x="340" y="438" class="svg-small">如果不用 barrier，就要用双 buffer、warp-level handshake、或者确保地址分区互不覆盖；这些都不是“免费”。</text>
+              <defs><marker id="arrD" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#657084"/></marker></defs>
+            </svg>
+            <figcaption>图 4：barrier 不是抽象口号，而是为了保证 shared memory 中同一批地址的生产者/消费者顺序。</figcaption>
+          </figure>
+          <table>
+            <thead><tr><th>绕开 barrier 的方式</th><th>怎么做</th><th>新的代价</th></tr></thead>
+            <tbody>
+              <tr><td>双 shared buffer</td><td><code>kv_k_shared</code> 给 QK，<code>kv_v_shared</code> 给 PV</td><td>shared memory 占用增加，可能降低 occupancy；多一份写入和 bank traffic。</td></tr>
+              <tr><td>双 cache 表示</td><td>cache 同时存 rotated key 和 de-rotated value</td><td>KV cache HBM 体积增加；paged cache、prefix cache、eviction 更复杂。</td></tr>
+              <tr><td>PV 重新读</td><td>QK 读 rotated KV；PV 再从 HBM/L2 读 value-ready KV</td><td>破坏 load once consume twice；decode 的 HBM/L2 压力上升。</td></tr>
+              <tr><td>warp specialization</td><td>producer warp 变换，consumer warp 做 MMA</td><td>需要更细的 pipeline 状态；PV 仍要等当前 value-ready。</td></tr>
+            </tbody>
+          </table>
+          <p>
+            CUTLASS 对 Hopper warp-specialized GEMM 的描述很有参考意义：producer warp group 负责把 global memory 搬到 shared buffers，consumer warp group 等待 buffer filled 后发 MMA，再释放 buffer。<a class="ref" href="#ref-cutlass-pipe">[CUTLASS-Pipe]</a> 这说明即使是最优化的 pipeline，也离不开清晰的 buffer 状态和同步语义。
+          </p>
+
+          </section>
+          <section id="sec-6">
+            <h2>6. 能不能算一部分 QK 就算这一部分 PV？可以，但账没消失</h2>
+          <p>
+            可以。FlashAttention 的核心就是按 K/V block 流式扫描，维护 running max 与 running sum，再把 partial output 合并。它不是先生成完整注意力矩阵，而是在线更新 softmax 统计量。<a class="ref" href="#ref-flash-softmax">[FA-Softmax]</a> DSV4 本地 sparse kernel 也有同样结构：<code>scores_max</code>、<code>scores_scale</code>、<code>sum_exp</code>、<code>acc_o</code> 都在 tile loop 内更新。<a class="ref" href="#ref-local-kernel">[Code-Kernel]</a><a class="ref" href="#ref-vllm">[vLLM]</a>
+          </p>
+          <div class="equation"><span class="katex-display"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mtable rowspacing="0.25em" columnalign="right left" columnspacing="0em"><mtr><mtd><mstyle scriptlevel="0" displaystyle="true"><msup><mi>m</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="true"><mrow><mrow></mrow><mo>=</mo><mi>max</mi><mo>⁡</mo><mo stretchy="false">(</mo><mi>m</mi><mo separator="true">,</mo><munder><mrow><mi>max</mi><mo>⁡</mo></mrow><mi>j</mi></munder><msub><mi>s</mi><mi>j</mi></msub><mo stretchy="false">)</mo><mo separator="true">,</mo></mrow></mstyle></mtd></mtr><mtr><mtd><mstyle scriptlevel="0" displaystyle="true"><msup><mi mathvariant="normal">ℓ</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="true"><mrow><mrow></mrow><mo>=</mo><mi mathvariant="normal">ℓ</mi><mtext> </mtext><msup><mi>e</mi><mrow><mi>m</mi><mo>−</mo><msup><mi>m</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup></mrow></msup><mo>+</mo><munder><mo>∑</mo><mi>j</mi></munder><msup><mi>e</mi><mrow><msub><mi>s</mi><mi>j</mi></msub><mo>−</mo><msup><mi>m</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup></mrow></msup><mo separator="true">,</mo></mrow></mstyle></mtd></mtr><mtr><mtd><mstyle scriptlevel="0" displaystyle="true"><msup><mi>O</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup></mstyle></mtd><mtd><mstyle scriptlevel="0" displaystyle="true"><mrow><mrow></mrow><mo>=</mo><mi>O</mi><mtext> </mtext><msup><mi>e</mi><mrow><mi>m</mi><mo>−</mo><msup><mi>m</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup></mrow></msup><mo>+</mo><munder><mo>∑</mo><mi>j</mi></munder><msup><mi>e</mi><mrow><msub><mi>s</mi><mi>j</mi></msub><mo>−</mo><msup><mi>m</mi><mo mathvariant="normal" lspace="0em" rspace="0em">′</mo></msup></mrow></msup><msub><mi>V</mi><mi>j</mi></msub><mi mathvariant="normal">.</mi></mrow></mstyle></mtd></mtr></mtable><annotation encoding="application/x-tex">\begin{aligned}m&#x27; &amp;= \max(m,\max_j s_j),\\ \ell&#x27; &amp;= \ell\,e^{m-m&#x27;}+\sum_j e^{s_j-m&#x27;},\\ O&#x27; &amp;= O\,e^{m-m&#x27;}+\sum_j e^{s_j-m&#x27;}V_j.\end{aligned}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:7.2313em;vertical-align:-3.3657em;"></span><span class="mord"><span class="mtable"><span class="col-align-r"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:3.8657em;"><span style="top:-6.0757em;"><span class="pstrut" style="height:3.05em;"></span><span class="mord"><span class="mord"><span class="mord mathnormal">m</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8019em;"><span style="top:-3.113em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span></span></span><span style="top:-3.8619em;"><span class="pstrut" style="height:3.05em;"></span><span class="mord"><span class="mord"><span class="mord">ℓ</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8019em;"><span style="top:-3.113em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span></span></span><span style="top:-1.0981em;"><span class="pstrut" style="height:3.05em;"></span><span class="mord"><span class="mord"><span class="mord mathnormal" style="margin-right:0.0278em;">O</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8019em;"><span style="top:-3.113em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:3.3657em;"><span></span></span></span></span></span><span class="col-align-l"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:3.8657em;"><span style="top:-6.0757em;"><span class="pstrut" style="height:3.05em;"></span><span class="mord"><span class="mord"></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mop">max</span><span class="mopen">(</span><span class="mord mathnormal">m</span><span class="mpunct">,</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mop op-limits"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.4306em;"><span style="top:-2.3723em;margin-left:0em;"><span class="pstrut" style="height:3em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0572em;">j</span></span></span><span style="top:-3em;"><span class="pstrut" style="height:3em;"></span><span><span class="mop">max</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.8638em;"><span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathnormal">s</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3117em;"><span style="top:-2.55em;margin-left:0em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0572em;">j</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mclose">)</span><span class="mpunct">,</span></span></span><span style="top:-3.8619em;"><span class="pstrut" style="height:3.05em;"></span><span class="mord"><span class="mord"></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord">ℓ</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathnormal">e</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.9925em;"><span style="top:-3.113em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">m</span><span class="mbin mtight">−</span><span class="mord mtight"><span class="mord mathnormal mtight">m</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8278em;"><span style="top:-2.931em;margin-right:0.0714em;"><span class="pstrut" style="height:2.5em;"></span><span class="sizing reset-size3 size1 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mop op-limits"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.05em;"><span style="top:-1.8723em;margin-left:0em;"><span class="pstrut" style="height:3.05em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0572em;">j</span></span></span><span style="top:-3.05em;"><span class="pstrut" style="height:3.05em;"></span><span><span class="mop op-symbol large-op">∑</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:1.4138em;"><span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathnormal">e</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.9925em;"><span style="top:-3.113em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathnormal mtight">s</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3281em;"><span style="top:-2.357em;margin-left:0em;margin-right:0.0714em;"><span class="pstrut" style="height:2.5em;"></span><span class="sizing reset-size3 size1 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0572em;">j</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2819em;"><span></span></span></span></span></span></span><span class="mbin mtight">−</span><span class="mord mtight"><span class="mord mathnormal mtight">m</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8278em;"><span style="top:-2.931em;margin-right:0.0714em;"><span class="pstrut" style="height:2.5em;"></span><span class="sizing reset-size3 size1 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="mpunct">,</span></span></span><span style="top:-1.0981em;"><span class="pstrut" style="height:3.05em;"></span><span class="mord"><span class="mord"></span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mord mathnormal" style="margin-right:0.0278em;">O</span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathnormal">e</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.9925em;"><span style="top:-3.113em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">m</span><span class="mbin mtight">−</span><span class="mord mtight"><span class="mord mathnormal mtight">m</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8278em;"><span style="top:-2.931em;margin-right:0.0714em;"><span class="pstrut" style="height:2.5em;"></span><span class="sizing reset-size3 size1 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mop op-limits"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:1.05em;"><span style="top:-1.8723em;margin-left:0em;"><span class="pstrut" style="height:3.05em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0572em;">j</span></span></span><span style="top:-3.05em;"><span class="pstrut" style="height:3.05em;"></span><span><span class="mop op-symbol large-op">∑</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:1.4138em;"><span></span></span></span></span></span><span class="mspace" style="margin-right:0.1667em;"></span><span class="mord"><span class="mord mathnormal">e</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.9925em;"><span style="top:-3.113em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mtight"><span class="mord mathnormal mtight">s</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3281em;"><span style="top:-2.357em;margin-left:0em;margin-right:0.0714em;"><span class="pstrut" style="height:2.5em;"></span><span class="sizing reset-size3 size1 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0572em;">j</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2819em;"><span></span></span></span></span></span></span><span class="mbin mtight">−</span><span class="mord mtight"><span class="mord mathnormal mtight">m</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8278em;"><span style="top:-2.931em;margin-right:0.0714em;"><span class="pstrut" style="height:2.5em;"></span><span class="sizing reset-size3 size1 mtight"><span class="mord mtight"><span class="mord mtight">′</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="mord"><span class="mord mathnormal" style="margin-right:0.2222em;">V</span><span class="msupsub"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.3117em;"><span style="top:-2.55em;margin-left:-0.2222em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mathnormal mtight" style="margin-right:0.0572em;">j</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.2861em;"><span></span></span></span></span></span></span><span class="mord">.</span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:3.3657em;"><span></span></span></span></span></span></span></span></span></span></span></span></div>
+          <p>
+            但 partial QK/PV 解决的是“不 materialize 全量 attention matrix”的问题，不自动解决“同一个 tile 的 K 表示何时可以改成 V 表示”的问题。只要 QK 的某些 MMA fragment 还会读某个 shared 地址，就不能把那个地址提前改写给 PV。
+          </p>
+          <figure>
+            <svg class="diagram" viewBox="0 0 1080 540" role="img" aria-label="online softmax and tile transform timeline">
+              <rect x="24" y="24" width="1032" height="460" rx="8" fill="#fff" stroke="#d8e1ea"/>
+              <text x="52" y="62" class="svg-title">partial QK/PV 的时间线：softmax 可以在线，表示转换仍要 value-ready</text>
+              <line x1="130" y1="120" x2="980" y2="120" stroke="#657084" stroke-width="2"/>
+              <text x="70" y="125" class="svg-label">tile j</text>
+              <rect x="150" y="92" width="116" height="58" rx="7" class="blue"/><text x="184" y="126" class="svg-code">QK_j</text>
+              <rect x="286" y="92" width="126" height="58" rx="7" class="red"/><text x="316" y="116" class="svg-code">update</text><text x="316" y="136" class="svg-code">m,l</text>
+              <rect x="432" y="92" width="136" height="58" rx="7" class="warm"/><text x="454" y="116" class="svg-code">V-ready_j?</text><text x="454" y="136" class="svg-small">transform waits</text>
+              <rect x="588" y="92" width="116" height="58" rx="7" class="blue"/><text x="622" y="126" class="svg-code">PV_j</text>
+              <line x1="130" y1="250" x2="980" y2="250" stroke="#657084" stroke-width="2"/>
+              <text x="70" y="255" class="svg-label">tile j+1</text>
+              <rect x="150" y="222" width="116" height="58" rx="7" class="blue"/><text x="178" y="256" class="svg-code">QK_j+1</text>
+              <rect x="286" y="222" width="126" height="58" rx="7" class="red"/><text x="316" y="246" class="svg-code">rescale</text><text x="316" y="266" class="svg-code">O</text>
+              <rect x="432" y="222" width="136" height="58" rx="7" class="warm"/><text x="456" y="246" class="svg-code">V-ready</text><text x="456" y="266" class="svg-small">same issue</text>
+              <rect x="588" y="222" width="116" height="58" rx="7" class="blue"/><text x="616" y="256" class="svg-code">PV_j+1</text>
+              <rect x="770" y="96" width="170" height="190" rx="8" class="neutral"/>
+              <text x="798" y="128" class="svg-label">需要额外状态</text>
+              <text x="798" y="158" class="svg-small">running max m</text>
+              <text x="798" y="182" class="svg-small">running sum l</text>
+              <text x="798" y="206" class="svg-small">acc_o rescale</text>
+              <text x="798" y="230" class="svg-small">prob/logit fragments</text>
+              <text x="798" y="254" class="svg-small">value transform status</text>
+              <path d="M208 150 C212 188 210 204 208 222" stroke="#a87015" stroke-width="2" stroke-dasharray="6 6"/>
+              <path d="M646 150 C650 188 648 204 646 222" stroke="#a87015" stroke-width="2" stroke-dasharray="6 6"/>
+              <text x="150" y="394" class="svg-small">结论：可以把大循环切成 tile/fragment，但每个 fragment 仍要满足“QK 读旧表示完成 → value transform 完成 → PV 读新表示”。</text>
+            </svg>
+            <figcaption>图 5：online softmax 让 attention 可以流式合并输出，但不允许同一 shared 地址同时承担两种 representation。</figcaption>
+          </figure>
+
+          </section>
+          <section id="sec-7">
+            <h2>7. 把 K 现场 RoPE 和 DSV4 V 旋转放进同一张工程账本</h2>
+          <p>
+            下面这张表是本文的主账本。它故意不评价算法效果，只把推理 kernel 会付的资源列出来。
+          </p>
+          <table>
+            <thead>
+              <tr>
+                <th>方案</th>
+                <th>HBM / L2</th>
+                <th>shared memory / register</th>
+                <th>CUDA Core / SFU</th>
+                <th>Tensor Core feed</th>
+                <th>位置元数据</th>
+                <th>工程复杂度</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>pre-RoPE cache K</td>
+                <td>cache 存 ready-to-dot K，decode 读一次 tile。</td>
+                <td>tile 进 shared 后直接给 QK。</td>
+                <td>decode 热循环无 K RoPE。</td>
+                <td>QK 前没有额外表示准备。</td>
+                <td>位置固化在数值里。</td>
+                <td>标准路径，天然适配 paged/prefix cache。</td>
+              </tr>
+              <tr>
+                <td>raw-K 现场 RoPE</td>
+                <td>K 字节数相近，但可能读 position/cos-sin table。</td>
+                <td>在 shared 或 register fragment 中生成 rotated K；可能多 live fragment。</td>
+                <td>per-KV 旋转、地址计算、cos/sin 读取。</td>
+                <td>QK 等 K-ready；可能打断 load→MMA pipeline。</td>
+                <td>每个 selected KV 需要逻辑位置。</td>
+                <td>可写，但 attention kernel 接口和 cache layout 更重。</td>
+              </tr>
+              <tr>
+                <td>DSV4 Q-position inverse</td>
+                <td>cache 存一份 shared KV；RoPE dims BF16，其余维可 FP8。<a class="ref" href="#ref-dsv4-storage">[DSV4-Store]</a></td>
+                <td>同一 <code>kv_shared</code> 连续给 QK/PV。</td>
+                <td>输出侧只对 <code>o</code> 的 RoPE slice 做一次 inverse。</td>
+                <td>QK 与 PV 中间无 tile representation transform。</td>
+                <td>query position 已知。</td>
+                <td>当前实现，代码路径干净。<a class="ref" href="#ref-local-model">[Code-QKVO]</a></td>
+              </tr>
+              <tr>
+                <td>V own-position inverse / relative rotate</td>
+                <td>不存两份时 HBM 可相近；存两份则 KV cache 增加。</td>
+                <td>QK 后 PV 前要 transform tile，或维护第二份 V tile。</td>
+                <td>per-KV RoPE inverse / relative rotate。</td>
+                <td>PV 等 value-ready；两个 Tensor Core 阶段中间夹 CUDA Core 段。</td>
+                <td>每个 selected KV 的真实位置或 anchor。</td>
+                <td>同步、layout、pipeline 状态都更复杂；不是不能实现。</td>
+              </tr>
+            </tbody>
+          </table>
+          <figure>
+            <svg class="diagram" viewBox="0 0 1080 520" role="img" aria-label="roofline and critical path comparison">
+              <rect x="24" y="24" width="1032" height="448" rx="8" fill="#fff" stroke="#d8e1ea"/>
+              <text x="52" y="62" class="svg-title">为什么 roofline 直觉不够：瓶颈可能从 HBM 变成 tile dependency</text>
+              <rect x="70" y="106" width="400" height="270" rx="8" class="neutral"/>
+              <line x1="120" y1="330" x2="420" y2="330" stroke="#657084" stroke-width="2"/>
+              <line x1="120" y1="330" x2="120" y2="140" stroke="#657084" stroke-width="2"/>
+              <path d="M120 330 L245 210 L420 160" fill="none" stroke="#3b65a7" stroke-width="3"/>
+              <circle cx="210" cy="246" r="8" fill="#1f6c66"/>
+              <circle cx="298" cy="194" r="8" fill="#a87015"/>
+              <text x="142" y="356" class="svg-small">arithmetic intensity</text>
+              <text x="72" y="138" class="svg-small">throughput</text>
+              <text x="224" y="268" class="svg-small">原 kernel</text>
+              <text x="314" y="202" class="svg-small">更多片上计算</text>
+              <text x="100" y="414" class="svg-small">roofline 说“理论上也许能藏住”，但不表达同步、bank、register、producer/consumer 依赖。</text>
+              <rect x="540" y="106" width="420" height="270" rx="8" class="neutral"/>
+              <text x="568" y="144" class="svg-label">critical path 账本</text>
+              <rect x="570" y="174" width="72" height="42" rx="6" class="blue"/><text x="588" y="200" class="svg-code">load</text>
+              <rect x="660" y="174" width="72" height="42" rx="6" class="blue"/><text x="684" y="200" class="svg-code">QK</text>
+              <rect x="750" y="174" width="86" height="42" rx="6" class="red"/><text x="764" y="200" class="svg-code">softmax</text>
+              <rect x="854" y="174" width="72" height="42" rx="6" class="blue"/><text x="878" y="200" class="svg-code">PV</text>
+              <text x="570" y="250" class="svg-small">当前：MMA stages 连续，kv_shared 不改表示。</text>
+              <rect x="570" y="292" width="72" height="42" rx="6" class="blue"/><text x="588" y="318" class="svg-code">load</text>
+              <rect x="660" y="292" width="72" height="42" rx="6" class="blue"/><text x="684" y="318" class="svg-code">QK</text>
+              <rect x="750" y="292" width="86" height="42" rx="6" class="red"/><text x="764" y="318" class="svg-code">softmax</text>
+              <rect x="854" y="286" width="86" height="54" rx="6" class="warm"/><text x="868" y="310" class="svg-code">rotate</text><text x="868" y="330" class="svg-small">new dep</text>
+              <text x="570" y="394" class="svg-small">改法：HBM 不变也可能增加 tile latency，因为 PV 依赖 rotate。</text>
+            </svg>
+            <figcaption>图 6：memory-bound 是全局判断；critical path 是 tile 内依赖判断。两个判断不矛盾。</figcaption>
+          </figure>
+
+          </section>
+          <section id="sec-8">
+            <h2>8. 结论：不是不能写，而是热路径值不值得改</h2>
+          <p>
+            从 kernel 可实现性看，raw-K 现场 RoPE、V own-position inverse、V relative rotate 都能写。手写 kernel 可以避免“寄存器一定翻倍”这种粗糙说法，也可以通过 fragment-level transform、双 buffer、warp specialization 或异步 pipeline 继续优化。
+          </p>
+          <p>
+            但工程代价的根子是：位置变换被搬进 per-KV tile 热循环后，会改变数据复用与依赖链。pre-RoPE K cache 把 K 做成 ready-to-dot；DSV4 当前 Q-position inverse 把 value 侧的相对旋转效果压到输出向量上。<a class="ref" href="#ref-roformer">[RoPE]</a><a class="ref" href="#ref-dsv4">[DSV4]</a>这两者都避免在 QK/PV 之间改写 <code>kv_shared</code>。
+          </p>
+          <div class="note">
+            <strong>更准确的一句话：</strong>问题不是 HBM 字节数是否翻倍，也不是 GPU 算不算得动旋转；问题是这个旋转若落在 QK/PV tile 的中间，就会消耗 CUDA Core、shared memory、register 和同步预算，并可能让 Tensor Core 等 value-ready。
+          </div>
+          <p>
+            所以你最开始的直觉“流式 kernel 技术上能实现、访存字节数可不涨”是对的；但它并不推出“工业 kernel 会无损采用”。工业实现更看重热循环里是否能维持简单的 buffer state、清晰的 producer/consumer 关系、稳定的 occupancy，以及能否让 Tensor Core 持续吃到已经准备好的 tile。
+          </p>
+
+          </section>
+          <section id="references">
+            <h2>参考文献与材料</h2>
+          <ol class="refs">
+            <li id="ref-dsv4"><span class="tag">DSV4</span> DeepSeek-AI, <a href="Reference/DeepSeek_V4.pdf">DeepSeek-V4 Technical Report</a>, §2.3.1-§2.3.2：CSA/HCA、shared Key-Value MQA、Partial Rotary Positional Embedding、core attention output 的 inverse RoPE。</li>
+            <li id="ref-dsv4-shared-kv"><span class="tag">DSV4-KV</span> DeepSeek-V4 Technical Report, shared Key-Value MQA：KV entry 同时作为 key 和 value。</li>
+            <li id="ref-dsv4-config"><span class="tag">DSV4-Config</span> DeepSeek-V4 Technical Report 与本地 <code>inference/config.json</code>：head dimension 512、RoPE dimension 64 等配置。</li>
+            <li id="ref-dsv4-storage"><span class="tag">DSV4-Store</span> DeepSeek-V4 Technical Report efficiency section：RoPE dimensions use BF16 precision while remaining dimensions use FP8 precision for KV entries。</li>
+            <li id="ref-local-model"><span class="tag">Code-QKVO</span> 本地 <code>/Users/jyxc-dz-0100301/Documents/code/thirdparty/DeepSeek-V4-Pro/inference/model.py:L232-L244</code> 定义 inverse RoPE；<code>L499-L534</code> 对 q、kv、o 分别应用 RoPE / inverse RoPE。</li>
+            <li id="ref-local-kernel"><span class="tag">Code-Kernel</span> 本地 <code>/Users/jyxc-dz-0100301/Documents/code/thirdparty/DeepSeek-V4-Pro/inference/kernel.py:L277-L352</code>：<code>kv_shared</code> gather 后用于 QK GEMM 和 PV GEMM。</li>
+            <li id="ref-roformer"><span class="tag">RoPE</span> Su et al., <a href="Reference/RoFormer-RoPE-2104.09864.pdf">RoFormer: Enhanced Transformer with Rotary Position Embedding</a>, §3：旋转矩阵编码绝对位置，并在 self-attention 内积中产生相对位置依赖。</li>
+            <li id="ref-cuda-memory"><span class="tag">CUDA-Mem</span> NVIDIA, <a href="Reference/NVIDIA-CUDA-C-Programming-Guide.html">CUDA C++ Programming Guide</a>, “Memory Hierarchy” 与 shared memory 相关章节。</li>
+            <li id="ref-cuda-sync"><span class="tag">CUDA-Sync</span> NVIDIA, CUDA C++ Programming Guide：<code>__syncthreads()</code> 作为 block 内 barrier。</li>
+            <li id="ref-cuda-matmul"><span class="tag">CUDA-Matmul</span> NVIDIA, CUDA C++ Programming Guide shared-memory matrix multiplication example：load shared、synchronize、compute、再次 synchronize 后覆盖 shared tile。</li>
+            <li id="ref-cuda-async"><span class="tag">CUDA-Async</span> NVIDIA, CUDA C++ Programming Guide, “Asynchronous Data Copies”：<code>cuda::barrier</code> / pipeline / TMA 的同步语义。</li>
+            <li id="ref-hopper"><span class="tag">Hopper</span> NVIDIA, <a href="Reference/NVIDIA-Hopper-Tuning-Guide.html">Hopper Tuning Guide</a>：H100 occupancy、shared memory capacity、TMA、HBM 与 L2 cache。</li>
+            <li id="ref-h100"><span class="tag">H100</span> NVIDIA, <a href="Reference/NVIDIA-H100-Specifications.html">H100 Product Specifications snapshot</a>：GPU Memory Bandwidth 与 Tensor Core throughput。</li>
+            <li id="ref-cutlass"><span class="tag">CUTLASS</span> NVIDIA, <a href="Reference/NVIDIA-CUTLASS-Efficient-GEMM.html">Efficient GEMM in CUDA</a>：hierarchical tiling、shared memory、register locality、Tensor Core MMA。</li>
+            <li id="ref-cutlass-pipe"><span class="tag">CUTLASS-Pipe</span> NVIDIA CUTLASS Efficient GEMM, “Pipelining” 与 Hopper warp-specialized producer/consumer pipeline。</li>
+            <li id="ref-flash"><span class="tag">FA-IO</span> Dao et al., <a href="Reference/FlashAttention-2205.14135.pdf">FlashAttention</a>, Abstract and §2：IO-aware attention，HBM/SRAM read-write accounting。</li>
+            <li id="ref-flash-softmax"><span class="tag">FA-Softmax</span> FlashAttention, Algorithm 1：tiling over Q/K/V blocks and maintaining running softmax statistics <code>m</code> and <code>ℓ</code>。</li>
+            <li id="ref-vllm"><span class="tag">vLLM</span> vLLM, <a href="Reference/vLLM-PagedAttention.html">PagedAttention design docs snapshot</a>：paged KV cache kernel 的 QK、shared logits、softmax reduction 与 value accumulation。</li>
+          </ol>
+          </section>
+        </div>
+      </article>
+
+      <aside class="post-toc" aria-label="本文目录">
+        <div class="post-toc-card">
+          <h2>本文目录</h2>
+          <nav>
+            <a href="#sec-1">1. 问题复述</a>
+            <a href="#sec-2">2. GPU 执行模型</a>
+            <a href="#sec-3">3. DSV4 热循环</a>
+            <a href="#sec-4">4. 现场旋转为何不免费</a>
+            <a class="depth-3" href="#sec-4-1">4.1 粗账本</a>
+            <a href="#sec-5">5. 为什么需要 barrier</a>
+            <a href="#sec-6">6. partial QK/PV</a>
+            <a href="#sec-7">7. 统一工程账本</a>
+            <a href="#sec-8">8. 结论</a>
+            <a href="#references">参考文献</a>
+          </nav>
+        </div>
+      </aside>
+    </div>
+  </div>
+</body>
+</html>
