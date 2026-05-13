@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>从 LLM Attention 讲透 GPU 执行模型</title>
+<link rel="stylesheet" href="Reference/katex/katex.min.css">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f1f5f4;
+  --surface: rgba(255, 255, 255, 0.82);
+  --surface-strong: #ffffff;
+  --ink: #111827;
+  --muted: #667085;
+  --line: #d8e1ea;
+  --accent: #28756f;
+  --accent-strong: #1e615c;
+  --accent-soft: #dff8f3;
+  --blue: #315f9d;
+  --blue-soft: #e8f1ff;
+  --amber: #9a6414;
+  --amber-soft: #fff1d6;
+  --red: #9b4545;
+  --red-soft: #ffe7e7;
+  --green-soft: #e8f8e8;
+  --code-bg: #f7f9fc;
+  --max: 1280px;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  background:
+    linear-gradient(90deg, rgba(17, 24, 39, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(17, 24, 39, 0.035) 1px, transparent 1px),
+    #eef4f3;
+  background-size: 40px 40px;
+  line-height: 1.72;
+  letter-spacing: 0;
+  overflow-x: hidden;
+}
+a { color: var(--accent-strong); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+code, pre, .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; }
+.site-shell { max-width: var(--max); margin: 0 auto; padding: 18px 18px 32px; }
+.topbar {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(247, 249, 252, 0.88);
+  backdrop-filter: blur(14px);
+}
+.brand { display: inline-flex; align-items: center; gap: 11px; min-width: 0; color: var(--ink); text-decoration: none; }
+.brand-mark {
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #91d7cd;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 820;
+}
+.brand strong { font-size: 16px; line-height: 1.2; letter-spacing: 0; }
+.nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 14px; color: var(--muted); font-size: 14px; font-weight: 560; }
+.nav a { color: var(--muted); text-decoration: none; }
+.nav a[aria-current="page"] { color: var(--ink); font-weight: 760; }
+.post-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 980px) 260px;
+  gap: 34px;
+  align-items: start;
+  max-width: 1260px;
+  margin: 0 auto;
+}
+.post-page { width: 100%; max-width: 980px; min-width: 0; padding: 38px 0 32px; }
+.post-toc { position: sticky; top: 18px; padding-top: 116px; }
+.post-toc-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(12px);
+}
+.post-toc-card h2 {
+  margin: 0;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+.post-toc-card nav { max-height: calc(100vh - 190px); overflow-y: auto; padding: 10px 8px 12px; }
+.post-toc-card a {
+  display: block;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+  padding: 7px 8px;
+  text-decoration: none;
+}
+.post-toc-card a:hover, .post-toc-card a:focus-visible { background: rgba(223, 248, 243, 0.86); color: var(--accent-strong); outline: none; }
+.post-header { padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+.post-kicker { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.post-kicker span {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.72);
+  color: var(--muted);
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 680;
+}
+.post-header h1 {
+  max-width: 940px;
+  margin: 0;
+  font-size: clamp(30px, 3vw, 42px);
+  line-height: 1.08;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+}
+.post-header p { max-width: 880px; margin: 16px 0 0; color: var(--muted); font-size: 17px; line-height: 1.62; }
+.post-content { display: flow-root; max-width: 100%; min-width: 0; margin-top: 28px; font-size: 17px; line-height: 1.72; }
+.post-content h2 { margin: 46px 0 14px; font-size: 28px; line-height: 1.22; letter-spacing: 0; scroll-margin-top: 24px; }
+.post-content h3 { margin: 30px 0 12px; font-size: 22px; line-height: 1.25; letter-spacing: 0; scroll-margin-top: 24px; }
+.post-content p, .post-content ul, .post-content ol, .post-content blockquote, .post-content figure, .post-content table { margin-top: 0; margin-bottom: 18px; }
+.post-content p { overflow-wrap: anywhere; }
+.lead { font-size: 18px; color: #303b4a; }
+.post-content code {
+  border: 1px solid rgba(216, 225, 234, 0.86);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.68);
+  padding: 1px 4px;
+  font-size: 0.9em;
+}
+.post-content pre {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #172033;
+  line-height: 1.55;
+  font-size: 13px;
+}
+.post-content pre code { border: 0; background: transparent; padding: 0; }
+.note, .warning, .answer {
+  border-left: 3px solid #8ddbd1;
+  border-radius: 0 8px 8px 0;
+  background: rgba(255,255,255,0.68);
+  padding: 12px 14px;
+  margin: 18px 0;
+}
+.warning { border-left-color: #e6b65f; background: rgba(255, 247, 232, 0.86); }
+.answer { border-left-color: #9ab2e8; background: rgba(244, 247, 255, 0.88); }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 18px 0; }
+.tri-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+.card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.68);
+  padding: 14px;
+}
+.card h3 { margin-top: 0; }
+.tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.72);
+  color: var(--muted);
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 720;
+  white-space: nowrap;
+}
+.ref {
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--accent-strong);
+  font-weight: 760;
+  text-decoration: none;
+  font-size: 0.82em;
+}
+.eq {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.72);
+  padding: 12px 14px;
+  margin: 16px 0 18px;
+  overflow-x: auto;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  color: #172033;
+}
+.post-content table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.post-content th, .post-content td { border-bottom: 1px solid var(--line); padding: 8px 9px; vertical-align: top; min-width: 128px; }
+.post-content th { background: rgba(255,255,255,0.78); font-weight: 760; }
+.post-content figure {
+  max-width: 100%;
+  margin: 22px 0 24px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.72);
+  overflow-x: auto;
+}
+.post-content figcaption { margin-top: 10px; color: var(--muted); font-size: 13px; line-height: 1.48; }
+.refs li { margin: 9px 0; padding-left: 2px; }
+svg.diagram { display: block; width: 100%; min-width: 780px; height: auto; }
+.svg-title { font: 700 18px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #111827; }
+.svg-label { font: 650 13px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #172033; }
+.svg-small { font: 12px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #657084; }
+.svg-code { font: 12px "SFMono-Regular", Consolas, monospace; fill: #172033; }
+.lane { fill: #f8fafc; stroke: #d8e1ea; }
+.neutral { fill: #ffffff; stroke: #d8e1ea; }
+.blue { fill: #e8f1ff; stroke: #9db7e2; }
+.warm { fill: #fff1d6; stroke: #dfb865; }
+.red { fill: #ffe7e7; stroke: #df9b9b; }
+.green { fill: #e8f8e8; stroke: #9acb9a; }
+.teal { fill: #dff8f3; stroke: #8ddbd1; }
+@media (max-width: 1040px) {
+  .site-shell { padding: 12px 12px 24px; }
+  .post-shell { grid-template-columns: 1fr; gap: 12px; }
+  .post-toc { position: static; padding-top: 0; order: -1; }
+  .post-toc-card nav { max-height: none; }
+  .post-page { padding-top: 22px; }
+  .grid, .tri-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .topbar { align-items: flex-start; flex-direction: column; }
+  .nav { justify-content: flex-start; }
+  .post-header h1 { font-size: 28px; }
+  .post-content { font-size: 16px; }
+  .post-content h2 { font-size: 24px; }
+  .post-content h3 { font-size: 20px; }
+  svg.diagram { min-width: 720px; }
+}
+</style>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="topbar">
+      <a class="brand" href="../zh/">
+        <span class="brand-mark">HY</span>
+        <strong>Houyi AI Research Flow</strong>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <a href="../zh/">首页</a>
+        <a href="../zh/reading-notes/" aria-current="page">阅读笔记</a>
+        <a href="../zh/papers/">论文</a>
+        <a href="../zh/open-source/">开源</a>
+      </nav>
+    </header>
+
+    <div class="post-shell">
+      <article class="post-page">
+        <header class="post-header">
+          <div class="post-kicker">
+            <span>GPU Execution Model</span>
+            <span>LLM Decode Attention</span>
+            <span>KV Cache / RoPE</span>
+            <span>独立素材页</span>
+            <span>更新：2026-05-13</span>
+          </div>
+          <h1>从 LLM Attention 讲透 GPU 执行模型</h1>
+          <p>
+            这篇不从 GPU 术语表开始，而从 decode attention 的热循环开始：<code>QK -> softmax -> PV</code>。目标是解释为什么 HBM、L2、shared memory、register、SM、warp、CUDA Core、Tensor Core、SFU、warp scheduler 这些层级不是装饰，以及它们如何决定 RoPE / KV cache kernel 的工程代价。
+          </p>
+        </header>
+
+        <div class="post-content">
+          <section id="s1">
+            <h2>1. 为什么 LLM 推理问题会变成 GPU 执行问题</h2>
+            <p class="lead">
+              Transformer 里 attention 的数学写法很干净：<code>scores = QK^T</code>，<code>P = softmax(scores)</code>，<code>O = PV</code>。但在 GPU 上，它不是一个抽象公式，而是一串数据搬运、tile 复用、矩阵乘、标量控制、同步和输出累加。
+            </p>
+            <p>
+              Prefill 阶段通常有较长 query 序列，batch 和 token 维度能形成较大的 GEMM，问题更像“如何把 Tensor Core 喂满”。Decode 阶段每次新增 token 少，历史 KV cache 长，attention 更像“反复从 KV cache 里拿 tile，做一个小 query 对很多历史 key/value 的热循环”。这也是为什么同样叫 attention，prefill 和 decode 的瓶颈形态很不一样。
+            </p>
+            <div class="eq">decode attention tile:
+  load KV tile from HBM/L2
+  -> stage in shared memory
+  -> QK MMA on Tensor Core
+  -> online softmax on CUDA Core/SFU
+  -> PV MMA on Tensor Core
+  -> update output accumulator</div>
+            <p>
+              所以“HBM 带宽够不够”或“峰值 FLOPs 够不够”都只是第一层问题。真正落到 kernel 时，还要问：KV tile 是否能在 shared memory 里复用？寄存器里有多少 live fragment？warp scheduler 有没有 ready warp 可以发射？Tensor Core 在等数据，还是 CUDA Core/SFU 在做标量阶段？这些问题由 CUDA 的 thread/block/SM 层级和 memory hierarchy 共同决定。<a class="ref" href="#ref-cuda-sm">[CUDA-SM]</a><a class="ref" href="#ref-cuda-memory">[CUDA-Mem]</a>
+            </p>
+          </section>
+
+          <section id="s2">
+            <h2>2. GPU 的层级不是装饰：每一层回答不同问题</h2>
+            <p>
+              对 LLM inference 来说，GPU memory hierarchy 不是简单的“越近越快”。它更像一份执行合约：什么数据大到只能放 HBM，什么数据要进入 L2 被多个 SM 机会性复用，什么 tile 能被一个 thread block 放进 shared memory 协作使用，什么 fragment 必须留在每个 thread 的 register 里。
+            </p>
+            <figure>
+              <svg class="diagram" viewBox="0 0 1120 560" role="img" aria-label="GPU memory and execution hierarchy">
+                <defs>
+                  <marker id="arrow-hierarchy" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#657084"/>
+                  </marker>
+                </defs>
+                <rect x="24" y="24" width="1072" height="500" rx="8" fill="#fff" stroke="#d8e1ea"/>
+                <text x="52" y="64" class="svg-title">LLM decode attention 的数据层级</text>
+                <rect x="60" y="110" width="170" height="120" rx="8" class="blue"/>
+                <text x="92" y="146" class="svg-label">HBM / global</text>
+                <text x="82" y="172" class="svg-small">权重、KV cache</text>
+                <text x="82" y="194" class="svg-small">容量大，延迟高</text>
+                <text x="82" y="216" class="svg-small">decode 常从这里取历史 KV</text>
+
+                <rect x="280" y="110" width="150" height="120" rx="8" class="green"/>
+                <text x="325" y="146" class="svg-label">L2</text>
+                <text x="304" y="172" class="svg-small">跨 SM cache</text>
+                <text x="304" y="194" class="svg-small">paged/gather 影响命中</text>
+                <text x="304" y="216" class="svg-small">不等于可控 tile store</text>
+
+                <rect x="480" y="84" width="560" height="360" rx="8" class="neutral"/>
+                <text x="512" y="122" class="svg-label">一个 SM 内的 thread block 执行区</text>
+                <rect x="520" y="160" width="170" height="116" rx="8" class="warm"/>
+                <text x="554" y="196" class="svg-label">shared memory</text>
+                <text x="544" y="222" class="svg-small">KV tile / Q tile</text>
+                <text x="544" y="244" class="svg-small">block 内线程共享</text>
+                <text x="544" y="266" class="svg-small">覆盖前要确认消费者读完</text>
+
+                <rect x="728" y="160" width="124" height="116" rx="8" class="teal"/>
+                <text x="758" y="196" class="svg-label">register</text>
+                <text x="746" y="222" class="svg-small">fragment</text>
+                <text x="746" y="244" class="svg-small">accumulator</text>
+                <text x="746" y="266" class="svg-small">每线程私有</text>
+
+                <rect x="884" y="160" width="120" height="116" rx="8" class="red"/>
+                <text x="918" y="196" class="svg-label">执行单元</text>
+                <text x="904" y="222" class="svg-small">Tensor Core</text>
+                <text x="904" y="244" class="svg-small">CUDA Core / SFU</text>
+                <text x="904" y="266" class="svg-small">LD/ST</text>
+
+                <rect x="520" y="318" width="484" height="82" rx="8" class="blue"/>
+                <text x="550" y="352" class="svg-label">warp schedulers</text>
+                <text x="550" y="378" class="svg-small">从 resident warps 中挑 ready instruction 发射到对应功能单元</text>
+
+                <line x1="230" y1="170" x2="280" y2="170" stroke="#657084" stroke-width="2" marker-end="url(#arrow-hierarchy)"/>
+                <line x1="430" y1="170" x2="520" y2="205" stroke="#657084" stroke-width="2" marker-end="url(#arrow-hierarchy)"/>
+                <line x1="690" y1="218" x2="728" y2="218" stroke="#657084" stroke-width="2" marker-end="url(#arrow-hierarchy)"/>
+                <line x1="852" y1="218" x2="884" y2="218" stroke="#657084" stroke-width="2" marker-end="url(#arrow-hierarchy)"/>
+                <text x="66" y="474" class="svg-small">关键：这些层级决定“数据能否复用、能否覆盖、谁在等谁”，不只是延迟数字大小。</text>
+              </svg>
+              <figcaption>图 1：HBM/L2/shared/register/执行单元分别回答不同问题。shared memory 和 register 位于 SM 内，决定一个 tile 在热循环里能被怎样复用。</figcaption>
+            </figure>
+            <div class="tri-grid">
+              <div class="card">
+                <h3>HBM</h3>
+                <p>放权重和 KV cache。容量大、带宽高，但 off-chip memory latency 通常远高于片上依赖；CUDA Guide 明确把 off-chip latency 描述为数百周期量级。<a class="ref" href="#ref-cuda-latency">[CUDA-Lat]</a></p>
+              </div>
+              <div class="card">
+                <h3>L2</h3>
+                <p>跨 SM 的缓存层。paged KV、sparse top-k gather、batch 间是否读相近页面，会影响 L2 命中与合并访问，但 kernel 不能像 shared memory 那样精确声明“这块 tile 给我复用两次”。</p>
+              </div>
+              <div class="card">
+                <h3>Shared Memory</h3>
+                <p>thread block 内共享，生命周期等于 block。它通常是 attention tile 的核心复用层：KV 从 HBM/L2 进来后，QK 和 PV 都想从这里读。</p>
+              </div>
+            </div>
+            <div class="grid">
+              <div class="card">
+                <h3>Register</h3>
+                <p>每个线程私有，保存 MMA fragment、softmax 的 <code>max/sum</code>、输出 accumulator、地址/scale 等临时变量。寄存器越多，单 SM 可同时驻留的 warp/block 可能越少，occupancy 下降。<a class="ref" href="#ref-cuda-occupancy">[CUDA-Occ]</a></p>
+              </div>
+              <div class="card">
+                <h3>Barrier 与覆盖</h3>
+                <p>shared memory 可以复用，也可以覆盖，但覆盖不是免费动作。若旧表示仍被 QK consumer 读取，另一个 warp 就不能把同一地址改写成 V 表示给 PV 读，这时需要同步保证生产者/消费者顺序。<a class="ref" href="#ref-cuda-sync">[CUDA-Sync]</a></p>
+              </div>
+            </div>
+          </section>
+
+          <section id="s3">
+            <h2>3. SM 是什么：Tensor Core 和 CUDA Core 的上一级执行单元</h2>
+            <p>
+              一个 NVIDIA GPU 由多个 Streaming Multiprocessor，也就是 SM，组成。CUDA kernel 启动后，grid 中的 thread blocks 会被分发到有执行容量的 SM 上；每个 block 的线程在一个 SM 上并发执行，多个 blocks 也可以同时驻留在同一个 SM 上。<a class="ref" href="#ref-cuda-sm">[CUDA-SM]</a>
+            </p>
+            <div class="answer">
+              <strong>直接回答：</strong>从硬件层级上，可以说 SM 是 Tensor Core、CUDA Core/SFU、LD/ST 单元、warp scheduler、register file、shared memory/L1 的上一级执行单元。Tensor Core 和 CUDA Core 不是彼此的上下级；它们是同一个 SM 里的不同功能单元，被 warp scheduler 发射的不同指令占用。
+            </div>
+            <figure>
+              <svg class="diagram" viewBox="0 0 1120 600" role="img" aria-label="SM contains different functional units">
+                <defs>
+                  <marker id="arrow-sm" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#657084"/>
+                  </marker>
+                </defs>
+                <rect x="24" y="24" width="1072" height="530" rx="8" fill="#fff" stroke="#d8e1ea"/>
+                <text x="52" y="64" class="svg-title">一个 SM 内部：调度、存储、执行单元是同级协作资源</text>
+                <rect x="70" y="112" width="980" height="380" rx="10" class="neutral"/>
+                <text x="98" y="148" class="svg-label">Streaming Multiprocessor (SM)</text>
+
+                <rect x="104" y="186" width="180" height="96" rx="8" class="blue"/>
+                <text x="126" y="220" class="svg-label">warp schedulers</text>
+                <text x="126" y="246" class="svg-small">挑 ready warp</text>
+                <text x="126" y="268" class="svg-small">发射下一条指令</text>
+
+                <rect x="322" y="186" width="170" height="96" rx="8" class="teal"/>
+                <text x="358" y="220" class="svg-label">register file</text>
+                <text x="348" y="246" class="svg-small">per-thread state</text>
+                <text x="348" y="268" class="svg-small">fragments / acc</text>
+
+                <rect x="530" y="186" width="180" height="96" rx="8" class="warm"/>
+                <text x="560" y="220" class="svg-label">shared / L1</text>
+                <text x="554" y="246" class="svg-small">thread-block local</text>
+                <text x="554" y="268" class="svg-small">tile staging</text>
+
+                <rect x="748" y="186" width="130" height="96" rx="8" class="green"/>
+                <text x="776" y="220" class="svg-label">LD/ST</text>
+                <text x="768" y="246" class="svg-small">global/shared</text>
+                <text x="768" y="268" class="svg-small">load/store</text>
+
+                <rect x="104" y="330" width="220" height="104" rx="8" class="blue"/>
+                <text x="142" y="366" class="svg-label">Tensor Core</text>
+                <text x="132" y="392" class="svg-small">matrix multiply accumulate</text>
+                <text x="132" y="414" class="svg-small">QK / PV / FFN GEMM</text>
+
+                <rect x="374" y="330" width="220" height="104" rx="8" class="red"/>
+                <text x="410" y="366" class="svg-label">CUDA Core / SFU</text>
+                <text x="402" y="392" class="svg-small">scalar/vector arithmetic</text>
+                <text x="402" y="414" class="svg-small">exp / scale / RoPE / index</text>
+
+                <rect x="644" y="330" width="234" height="104" rx="8" class="warm"/>
+                <text x="682" y="366" class="svg-label">barrier / scoreboard</text>
+                <text x="672" y="392" class="svg-small">producer-consumer order</text>
+                <text x="672" y="414" class="svg-small">等待 shared tile ready</text>
+
+                <line x1="284" y1="234" x2="322" y2="234" stroke="#657084" stroke-width="2" marker-end="url(#arrow-sm)"/>
+                <line x1="284" y1="254" x2="530" y2="254" stroke="#657084" stroke-width="2" marker-end="url(#arrow-sm)"/>
+                <line x1="284" y1="274" x2="748" y2="274" stroke="#657084" stroke-width="2" marker-end="url(#arrow-sm)"/>
+                <line x1="214" y1="282" x2="214" y2="330" stroke="#657084" stroke-width="2" marker-end="url(#arrow-sm)"/>
+                <line x1="246" y1="282" x2="484" y2="330" stroke="#657084" stroke-width="2" marker-end="url(#arrow-sm)"/>
+                <text x="912" y="226" class="svg-small">H100: SM 级资源包含 register file、shared/L1、Tensor Core 等；Hopper Guide 给出 H100 每 SM 64K 32-bit registers 和最高 228KB shared capacity。</text>
+              </svg>
+              <figcaption>图 2：SM 不是一个抽象词，而是把调度、片上存储和执行单元放在一起的硬件执行岛。Tensor Core 与 CUDA Core/SFU 是 SM 内的不同执行路径。</figcaption>
+            </figure>
+            <p>
+              这一区分对 LLM kernel 很要命。QK/PV 是 dense matrix multiply accumulate，适合 Tensor Core；RoPE、inverse RoPE、relative rotate、mask、index decode、softmax 的 exp/scale、online softmax 的 max/sum 更新，主要走 CUDA Core/SFU/LD-ST 路径。Tensor Core 的理论 TFLOPs 不能直接支付这些标量和控制工作。CUDA C++ Programming Guide 在 SM 架构列表中把 Tensor Cores 和 warp schedulers列为 SM 组成部分；Hopper 文档进一步给出 H100 SM 的寄存器和 shared memory 容量。<a class="ref" href="#ref-cuda-tensor">[CUDA-TC]</a><a class="ref" href="#ref-hopper-sm">[Hopper-SM]</a>
+            </p>
+          </section>
+
+          <section id="s4">
+            <h2>4. warp、thread、block：GPU 到底怎么并行</h2>
+            <p>
+              CUDA 的编程视角是 thread，但硬件调度基本单位是 warp。一个 thread block 包含一组 threads，这些 threads 会被划分成 warps；NVIDIA 文档描述 warp 由连续 thread ID 组成，通常 32 个 thread 一组。block 被分发到一个 SM 上执行，SM 内可以同时驻留多个 block 和多个 warp。<a class="ref" href="#ref-cuda-warp">[CUDA-Warp]</a>
+            </p>
+            <div class="answer">
+              <strong>warp 是多线程的吗？</strong>是。warp 是硬件调度的一组 threads；一条 warp 指令会发给该 warp 的 active threads。你写的是很多 CUDA threads，硬件按 warp 组织它们、调度它们、隐藏延迟。
+            </div>
+            <figure>
+              <svg class="diagram" viewBox="0 0 1120 560" role="img" aria-label="thread block warp SM parallelism">
+                <defs>
+                  <marker id="arrow-warp" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#657084"/>
+                  </marker>
+                </defs>
+                <rect x="24" y="24" width="1072" height="498" rx="8" fill="#fff" stroke="#d8e1ea"/>
+                <text x="52" y="64" class="svg-title">thread / warp / block / SM 的并行关系</text>
+                <rect x="70" y="112" width="250" height="330" rx="8" class="neutral"/>
+                <text x="94" y="148" class="svg-label">Thread Block A</text>
+                <g>
+                  <rect x="96" y="180" width="198" height="42" rx="6" class="blue"/>
+                  <text x="116" y="206" class="svg-code">warp 0: thread 0..31</text>
+                  <rect x="96" y="236" width="198" height="42" rx="6" class="blue"/>
+                  <text x="116" y="262" class="svg-code">warp 1: thread 32..63</text>
+                  <rect x="96" y="292" width="198" height="42" rx="6" class="blue"/>
+                  <text x="116" y="318" class="svg-code">warp 2: thread 64..95</text>
+                  <rect x="96" y="348" width="198" height="42" rx="6" class="blue"/>
+                  <text x="116" y="374" class="svg-code">warp 3: thread 96..127</text>
+                </g>
+                <rect x="390" y="112" width="280" height="330" rx="8" class="warm"/>
+                <text x="418" y="148" class="svg-label">一个 SM 上的 resident warps</text>
+                <rect x="424" y="180" width="210" height="42" rx="6" class="green"/>
+                <text x="452" y="206" class="svg-code">A.warp0 ready: MMA</text>
+                <rect x="424" y="236" width="210" height="42" rx="6" class="red"/>
+                <text x="452" y="262" class="svg-code">A.warp1 waiting: load</text>
+                <rect x="424" y="292" width="210" height="42" rx="6" class="green"/>
+                <text x="452" y="318" class="svg-code">B.warp0 ready: exp</text>
+                <rect x="424" y="348" width="210" height="42" rx="6" class="blue"/>
+                <text x="452" y="374" class="svg-code">C.warp2 ready: store</text>
+                <rect x="738" y="112" width="320" height="330" rx="8" class="neutral"/>
+                <text x="766" y="148" class="svg-label">warp scheduler 的行为</text>
+                <text x="776" y="194" class="svg-small">每个 issue 时刻：</text>
+                <text x="776" y="222" class="svg-small">1. 看哪些 warp 的下一条指令 ready</text>
+                <text x="776" y="250" class="svg-small">2. 选择一条指令发射</text>
+                <text x="776" y="278" class="svg-small">3. 指令进入 Tensor Core / CUDA Core / LD-ST</text>
+                <text x="776" y="306" class="svg-small">4. 某些 warp 等内存或 barrier 时，调度别的 warp</text>
+                <text x="776" y="356" class="svg-small">延迟隐藏依赖 resident warps 和独立指令；同步点会让越来越多 warp 等待。</text>
+                <line x1="320" y1="246" x2="390" y2="246" stroke="#657084" stroke-width="2" marker-end="url(#arrow-warp)"/>
+                <line x1="670" y1="246" x2="738" y2="246" stroke="#657084" stroke-width="2" marker-end="url(#arrow-warp)"/>
+              </svg>
+              <figcaption>图 3：GPU 通过大量 resident warps 交错执行来隐藏 latency。一个 warp 等 global memory 或 barrier 时，scheduler 尝试发射其他 ready warp 的指令。</figcaption>
+            </figure>
+            <p>
+              SM 内并行和 SM 间并行也要分开看。SM 内：同一 SM 上多个 resident warps 交错执行，部分 warp 发 MMA，部分 warp 做 load/store，部分 warp 做 softmax 或地址计算；但同一个 thread block 内 shared memory 读写需要通过 <code>__syncthreads()</code> 或更细粒度 barrier 保证顺序。SM 间：不同 blocks 被分发到不同 SM，默认彼此独立，不能用普通 <code>__syncthreads()</code> 跨 SM 同步；跨 block 协调通常依赖 global memory、新 kernel 边界，或 Hopper 的 cluster / distributed shared memory 等特殊机制。<a class="ref" href="#ref-cuda-block-sync">[CUDA-Block]</a><a class="ref" href="#ref-hopper-tma">[Hopper-TMA]</a>
+            </p>
+          </section>
+
+          <section id="s5">
+            <h2>5. 把 LLM Attention 映射到 GPU 流水</h2>
+            <p>
+              现在把术语放回 decode attention。一个常见 tile 流水是：KV cache 在 HBM；请求进入 SM 前可能经过 L2；thread block 把一个 KV tile 搬进 shared memory；QK 通过 Tensor Core 做 MMA；softmax 的 max/sum/exp/scale 走 CUDA Core/SFU；PV 再走 Tensor Core，把 probability tile 乘 value tile，更新输出 accumulator。
+            </p>
+            <figure>
+              <svg class="diagram" viewBox="0 0 1120 610" role="img" aria-label="LLM attention tile pipeline">
+                <defs>
+                  <marker id="arrow-attn" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#657084"/>
+                  </marker>
+                </defs>
+                <rect x="24" y="24" width="1072" height="540" rx="8" fill="#fff" stroke="#d8e1ea"/>
+                <text x="52" y="64" class="svg-title">decode attention tile：从 KV cache 到输出 accumulator</text>
+                <rect x="60" y="126" width="140" height="90" rx="8" class="blue"/>
+                <text x="92" y="160" class="svg-label">HBM</text>
+                <text x="82" y="186" class="svg-small">KV cache pages</text>
+                <rect x="238" y="126" width="120" height="90" rx="8" class="green"/>
+                <text x="284" y="160" class="svg-label">L2</text>
+                <text x="260" y="186" class="svg-small">cache / coalesce</text>
+                <rect x="396" y="126" width="170" height="90" rx="8" class="warm"/>
+                <text x="430" y="160" class="svg-label">shared tile</text>
+                <text x="424" y="186" class="svg-code">kv_shared</text>
+                <rect x="604" y="126" width="130" height="90" rx="8" class="blue"/>
+                <text x="632" y="160" class="svg-label">QK MMA</text>
+                <text x="632" y="186" class="svg-small">Tensor Core</text>
+                <rect x="772" y="126" width="150" height="90" rx="8" class="red"/>
+                <text x="810" y="160" class="svg-label">softmax</text>
+                <text x="802" y="186" class="svg-small">CUDA / SFU</text>
+                <rect x="960" y="126" width="120" height="90" rx="8" class="blue"/>
+                <text x="986" y="160" class="svg-label">PV MMA</text>
+                <text x="986" y="186" class="svg-small">Tensor Core</text>
+                <line x1="200" y1="171" x2="238" y2="171" stroke="#657084" stroke-width="2" marker-end="url(#arrow-attn)"/>
+                <line x1="358" y1="171" x2="396" y2="171" stroke="#657084" stroke-width="2" marker-end="url(#arrow-attn)"/>
+                <line x1="566" y1="171" x2="604" y2="171" stroke="#657084" stroke-width="2" marker-end="url(#arrow-attn)"/>
+                <line x1="734" y1="171" x2="772" y2="171" stroke="#657084" stroke-width="2" marker-end="url(#arrow-attn)"/>
+                <line x1="922" y1="171" x2="960" y2="171" stroke="#657084" stroke-width="2" marker-end="url(#arrow-attn)"/>
+
+                <rect x="130" y="294" width="860" height="166" rx="8" class="neutral"/>
+                <text x="166" y="330" class="svg-label">online softmax state，不 materialize 全量 attention matrix</text>
+                <rect x="176" y="358" width="150" height="56" rx="7" class="teal"/>
+                <text x="214" y="392" class="svg-code">m_i = max</text>
+                <rect x="360" y="358" width="150" height="56" rx="7" class="teal"/>
+                <text x="398" y="392" class="svg-code">l_i = sum</text>
+                <rect x="544" y="358" width="170" height="56" rx="7" class="teal"/>
+                <text x="584" y="392" class="svg-code">acc_o</text>
+                <rect x="748" y="358" width="188" height="56" rx="7" class="warm"/>
+                <text x="776" y="392" class="svg-code">rescale old acc</text>
+                <text x="166" y="444" class="svg-small">FlashAttention 的核心思想是 IO-aware tiling：把 attention 按块处理，在 SRAM/shared/register 中维护 running max、normalizer 和 output accumulator。</text>
+              </svg>
+              <figcaption>图 4：decode attention 的 tile 化执行。FlashAttention 一类算法避免把完整 attention matrix 写回 HBM，而是在片上状态中做 online softmax 和输出累加。<a class="ref" href="#ref-flash">[FlashAttn]</a></figcaption>
+            </figure>
+            <p>
+              DSV4 reference code 可以作为很好的具体例子：<code>inference/model.py</code> 里对 q 和 kv 的 RoPE slice 先做 <code>apply_rotary_emb</code>，进入 <code>sparse_attn</code>；输出 <code>o</code> 的 RoPE slice 再做 <code>inverse=True</code>。<code>inference/kernel.py</code> 中 <code>kv_shared</code> gather 后先作为 K 参与 <code>T.gemm(q_shared, kv_shared, ... transpose_B=True)</code>，随后同一份 <code>kv_shared</code> 又作为 V 参与 <code>T.gemm(acc_s_cast, kv_shared, acc_o)</code>。换句话说，同一份 kv_shared 连续喂两个 GEMM。<a class="ref" href="#ref-dsv4-code-model">[DSV4-Code-M]</a><a class="ref" href="#ref-dsv4-code-kernel">[DSV4-Code-K]</a>
+            </p>
+            <pre><code># simplified from the DSV4 reference sparse attention kernel
+kv_shared = gather(kv_cache, idxs)           # one shared tile
+acc_s     = q_shared @ kv_shared.T          # QK: kv_shared as K
+p         = online_softmax(acc_s)           # max/sum/rescale logic
+acc_o    += p @ kv_shared                   # PV: same kv_shared as V</code></pre>
+            <p>
+              这个复用是当前设计的工程红利：同一份 shared tile 被两个 GEMM 连续消费，中间不需要把 tile 从一种表示改成另一种表示。CUTLASS 的 GEMM 文档也描述了典型高性能 GEMM 的层级：threadblock 级 shared tile、warp 级 fragment、register accumulator，以及通过 pipeline/double buffering 把搬运和计算重叠。<a class="ref" href="#ref-cutlass-gemm">[CUTLASS-GEMM]</a><a class="ref" href="#ref-cutlass-pipe">[CUTLASS-Pipe]</a>
+            </p>
+          </section>
+
+          <section id="s6">
+            <h2>6. 为什么要区分 Tensor Core 和 CUDA Core</h2>
+            <p>
+              这点是理解“多一层 RoPE 为什么不必然免费”的核心。Tensor Core 擅长规则的矩阵乘累加，吞吐极高，但它吃的是已经排好布局的矩阵 fragment。RoPE、inverse RoPE、relative rotate、top-k gather 的地址计算、paged KV 的 page table lookup、mask、softmax exp、rescale old accumulator，都不是同一类 workload。
+            </p>
+            <figure>
+              <svg class="diagram" viewBox="0 0 1120 560" role="img" aria-label="Tensor Core path versus CUDA Core path">
+                <defs>
+                  <marker id="arrow-core" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#657084"/>
+                  </marker>
+                </defs>
+                <rect x="24" y="24" width="1072" height="500" rx="8" fill="#fff" stroke="#d8e1ea"/>
+                <text x="52" y="64" class="svg-title">同一个 attention tile 里有两条资源路径</text>
+                <rect x="80" y="120" width="430" height="300" rx="8" class="blue"/>
+                <text x="118" y="158" class="svg-label">Tensor Core 路径：规则 MMA</text>
+                <rect x="126" y="196" width="150" height="58" rx="7" class="neutral"/>
+                <text x="160" y="231" class="svg-code">Q fragment</text>
+                <rect x="314" y="196" width="150" height="58" rx="7" class="neutral"/>
+                <text x="350" y="231" class="svg-code">K/V fragment</text>
+                <rect x="184" y="306" width="220" height="66" rx="7" class="teal"/>
+                <text x="236" y="345" class="svg-code">mma.sync / wgmma</text>
+                <line x1="202" y1="254" x2="258" y2="306" stroke="#657084" stroke-width="2" marker-end="url(#arrow-core)"/>
+                <line x1="390" y1="254" x2="330" y2="306" stroke="#657084" stroke-width="2" marker-end="url(#arrow-core)"/>
+
+                <rect x="610" y="120" width="430" height="300" rx="8" class="red"/>
+                <text x="648" y="158" class="svg-label">CUDA Core / SFU / LD-ST 路径：标量、控制、搬运</text>
+                <rect x="650" y="196" width="150" height="58" rx="7" class="neutral"/>
+                <text x="676" y="231" class="svg-code">RoPE rotate</text>
+                <rect x="842" y="196" width="150" height="58" rx="7" class="neutral"/>
+                <text x="862" y="231" class="svg-code">exp / scale</text>
+                <rect x="650" y="304" width="150" height="58" rx="7" class="neutral"/>
+                <text x="676" y="339" class="svg-code">index decode</text>
+                <rect x="842" y="304" width="150" height="58" rx="7" class="neutral"/>
+                <text x="864" y="339" class="svg-code">shared store</text>
+                <text x="82" y="470" class="svg-small">结论：Tensor Core 是否空闲、CUDA Core/SFU 是否繁忙、shared memory 是否发生读写相位冲突，是三个不同问题。</text>
+              </svg>
+              <figcaption>图 5：QK/PV 的 GEMM 工作和 RoPE/softmax/index 的标量控制工作使用不同执行资源。一个路径的峰值富余不能自动抵消另一路径的依赖等待。</figcaption>
+            </figure>
+            <p>
+              例如把 K 的 RoPE 放进 decode 内循环：你也许不增加 HBM 字节数，因为还是读一个 K；也可以选择在寄存器 fragment 中边读边旋转，避免存两份。但 QK MMA 需要的是 rotated K fragment，这意味着 Tensor Core 要等 K-ready。再比如 DSV4 value own-position inverse：QK 消费的是 K 表示，PV 消费的是 V 表示；如果它们共享同一块 <code>kv_shared</code>，中间的 value transform 就不是“顺手算一下”，而是改变 shared tile 的语义，产生 producer/consumer 依赖。
+            </p>
+          </section>
+
+          <section id="s7">
+            <h2>7. memory-bound 的正确理解：roofline 和 critical path 是两件事</h2>
+            <p>
+              说 decode attention memory-bound，通常是从 roofline 视角：HBM 搬运 KV cache 的字节数相对计算量很大，整体吞吐容易受 HBM 带宽约束。但 kernel 的执行时间不是只由总字节数决定。一个操作如果插在 QK 和 PV 之间，并且 PV 必须等待它产出新表示，那么它会拉长 tile 的 critical path，即使 HBM 字节数没有增加。
+            </p>
+            <figure>
+              <svg class="diagram" viewBox="0 0 1120 600" role="img" aria-label="memory bound versus critical path timeline">
+                <rect x="24" y="24" width="1072" height="530" rx="8" fill="#fff" stroke="#d8e1ea"/>
+                <text x="52" y="64" class="svg-title">memory-bound 不等于所有中间工作都能隐藏</text>
+                <text x="70" y="120" class="svg-label">标准路径：load 与前后 tile 可 pipeline，当前 tile 内 QK -> softmax -> PV 连续消费同一表示</text>
+                <rect x="70" y="148" width="180" height="48" rx="7" class="blue"/><text x="124" y="178" class="svg-code">load tile n</text>
+                <rect x="250" y="148" width="130" height="48" rx="7" class="teal"/><text x="300" y="178" class="svg-code">QK</text>
+                <rect x="380" y="148" width="150" height="48" rx="7" class="red"/><text x="420" y="178" class="svg-code">softmax</text>
+                <rect x="530" y="148" width="130" height="48" rx="7" class="teal"/><text x="580" y="178" class="svg-code">PV</text>
+                <rect x="120" y="214" width="180" height="34" rx="6" class="green"/><text x="158" y="237" class="svg-code">load tile n+1</text>
+
+                <text x="70" y="312" class="svg-label">现场 value rotate：即使 load 字节数不变，PV 也要等 transform 完成</text>
+                <rect x="70" y="340" width="180" height="48" rx="7" class="blue"/><text x="124" y="370" class="svg-code">load tile n</text>
+                <rect x="250" y="340" width="130" height="48" rx="7" class="teal"/><text x="300" y="370" class="svg-code">QK</text>
+                <rect x="380" y="340" width="118" height="48" rx="7" class="red"/><text x="406" y="370" class="svg-code">barrier</text>
+                <rect x="498" y="340" width="160" height="48" rx="7" class="warm"/><text x="534" y="370" class="svg-code">rotate V</text>
+                <rect x="658" y="340" width="118" height="48" rx="7" class="red"/><text x="684" y="370" class="svg-code">barrier</text>
+                <rect x="776" y="340" width="130" height="48" rx="7" class="teal"/><text x="826" y="370" class="svg-code">PV</text>
+                <rect x="120" y="406" width="180" height="34" rx="6" class="green"/><text x="158" y="429" class="svg-code">load tile n+1</text>
+                <text x="70" y="500" class="svg-small">能隐藏的前提：有独立工作可重叠，且消费者不依赖这个生产者的结果。若 PV 读的是 transform 后的 tile，transform 就在当前 tile 的硬依赖链上。</text>
+              </svg>
+              <figcaption>图 6：roofline 的 memory-bound 判断说明大方向，但 critical path 决定单个 tile 的等待链。现场 rotate 若处在 QK 和 PV 中间，就不是简单的 HBM 等待期间附赠计算。</figcaption>
+            </figure>
+            <p>
+              Hopper 的 TMA 和 CUDA 的 async copy 能让 global-to-shared 搬运与 SM 内计算重叠；CUTLASS 的 pipeline 也会给 shared tile 和 register fragment 做多级 buffering。<a class="ref" href="#ref-hopper-tma">[Hopper-TMA]</a><a class="ref" href="#ref-cutlass-pipe">[CUTLASS-Pipe]</a> 但隐藏成立有条件：当前工作必须与被等待的数据无依赖，并且有足够 resident warps 或独立指令可发射。CUDA Guide 对 latency hiding 的描述也强调，warp scheduler 需要 ready instructions；同步点会让越来越多 warp 等待，从而降低利用率。<a class="ref" href="#ref-cuda-scheduler">[CUDA-Sched]</a>
+            </p>
+            <div class="warning">
+              <strong>不是说现场旋转一定慢。</strong>如果旋转可以放在独立 pipeline stage、用额外 buffer 避免覆盖 hazard、或者 tile 形状让 CUDA Core/SFU 工作被其他 tile 的 load/MMA 吃掉，它可能很便宜。本文的结论更窄：当旋转改变当前 tile 被下游 GEMM 消费前的表示，并且处在 producer/consumer 硬依赖链上，它就不能仅凭“decode memory-bound”被判定为免费。
+            </div>
+          </section>
+
+          <section id="s8">
+            <h2>8. 回到 RoPE/KV Cache：这套 GPU 模型如何解释原问题</h2>
+            <p>
+              现在把两个讨论合并。K 现场 RoPE 和 DSV4 own-position value inverse / relative rotate 的相似性在于：它们都把位置变换搬进 per-KV tile 热循环，区别只是插入点不同。
+            </p>
+            <div class="grid">
+              <div class="card">
+                <h3>K 现场 RoPE</h3>
+                <p>插在 <code>load kv tile</code> 与 <code>QK MMA</code> 之间。QK 需要 rotated K，所以 K-ready 是 QK 的前置条件。代价主要是 position metadata、CUDA Core/SFU 旋转、fragment/register 或 shared tile 处理，以及 Tensor Core feed 的等待风险。</p>
+              </div>
+              <div class="card">
+                <h3>own-position value inverse</h3>
+                <p>插在 <code>QK/softmax</code> 与 <code>PV MMA</code> 之间。如果同一份 <code>kv_shared</code> 先当 K 后当 V，而 V 需要另一种表示，那么就需要 transform 阶段和同步，或改成多 buffer/重读/重排 kernel。</p>
+              </div>
+            </div>
+            <figure>
+              <svg class="diagram" viewBox="0 0 1120 620" role="img" aria-label="RoPE KV engineering ledger">
+                <defs>
+                  <marker id="arrow-rope" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
+                    <path d="M0,0 L0,6 L9,3 z" fill="#657084"/>
+                  </marker>
+                </defs>
+                <rect x="24" y="24" width="1072" height="550" rx="8" fill="#fff" stroke="#d8e1ea"/>
+                <text x="52" y="64" class="svg-title">位置变换落点决定工程代价</text>
+                <rect x="76" y="128" width="142" height="58" rx="7" class="blue"/><text x="108" y="164" class="svg-code">load KV</text>
+                <rect x="258" y="128" width="142" height="58" rx="7" class="warm"/><text x="284" y="164" class="svg-code">K ready?</text>
+                <rect x="440" y="128" width="142" height="58" rx="7" class="teal"/><text x="492" y="164" class="svg-code">QK</text>
+                <rect x="622" y="128" width="142" height="58" rx="7" class="red"/><text x="658" y="164" class="svg-code">softmax</text>
+                <rect x="804" y="128" width="142" height="58" rx="7" class="warm"/><text x="830" y="164" class="svg-code">V ready?</text>
+                <rect x="986" y="128" width="92" height="58" rx="7" class="teal"/><text x="1012" y="164" class="svg-code">PV</text>
+                <line x1="218" y1="157" x2="258" y2="157" stroke="#657084" stroke-width="2" marker-end="url(#arrow-rope)"/>
+                <line x1="400" y1="157" x2="440" y2="157" stroke="#657084" stroke-width="2" marker-end="url(#arrow-rope)"/>
+                <line x1="582" y1="157" x2="622" y2="157" stroke="#657084" stroke-width="2" marker-end="url(#arrow-rope)"/>
+                <line x1="764" y1="157" x2="804" y2="157" stroke="#657084" stroke-width="2" marker-end="url(#arrow-rope)"/>
+                <line x1="946" y1="157" x2="986" y2="157" stroke="#657084" stroke-width="2" marker-end="url(#arrow-rope)"/>
+
+                <rect x="116" y="270" width="260" height="112" rx="8" class="green"/>
+                <text x="146" y="306" class="svg-label">pre-RoPE cache / DSV4 当前输出 inverse</text>
+                <text x="146" y="334" class="svg-small">位置变换在 cache 写入侧或输出侧</text>
+                <text x="146" y="358" class="svg-small">热循环里 kv_shared 表示稳定</text>
+
+                <rect x="430" y="270" width="260" height="112" rx="8" class="warm"/>
+                <text x="460" y="306" class="svg-label">raw-K 现场 RoPE</text>
+                <text x="460" y="334" class="svg-small">K-ready 插在 QK 前</text>
+                <text x="460" y="358" class="svg-small">Tensor Core 等 rotated K fragment</text>
+
+                <rect x="744" y="270" width="260" height="112" rx="8" class="red"/>
+                <text x="774" y="306" class="svg-label">own-position V rotate</text>
+                <text x="774" y="334" class="svg-small">V-ready 插在 QK/PV 中间</text>
+                <text x="774" y="358" class="svg-small">需要 barrier 或双 buffer/重读</text>
+
+                <text x="116" y="466" class="svg-small">核心不是“数学等价不等价”，而是 tile representation 是否稳定，shared memory 是否能连续复用，Tensor Core 是否能无等待地接上下一段 MMA。</text>
+              </svg>
+              <figcaption>图 7：两个问题的统一解释：位置变换改变了哪个阶段看到的 tile 表示，以及这个变换是否在热循环依赖链上。</figcaption>
+            </figure>
+            <table>
+              <thead>
+                <tr>
+                  <th>方案</th>
+                  <th>插入位置</th>
+                  <th>主要硬件资源</th>
+                  <th>能否隐藏</th>
+                  <th>主要风险</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>pre-RoPE K cache</td>
+                  <td>cache 写入侧</td>
+                  <td>prefill/decode 写 cache 前的 CUDA Core/SFU 或向量路径</td>
+                  <td>decode 热循环直接读 ready K，最容易隐藏</td>
+                  <td>cache 数值已经绑定位置，改变位置编码策略要重算或重写路径</td>
+                </tr>
+                <tr>
+                  <td>raw-K decode 现场 RoPE</td>
+                  <td>QK 前</td>
+                  <td>CUDA Core/SFU、position metadata、register/shared、LD/ST</td>
+                  <td>可通过 fragment-level transform、pipeline 优化部分隐藏；但 QK 消费 rotated K，存在前置依赖</td>
+                  <td>position 读取、寄存器 live range、shared tile 处理、Tensor Core feed 等待</td>
+                </tr>
+                <tr>
+                  <td>DSV4 Q-position inverse</td>
+                  <td>PV 后输出侧</td>
+                  <td>CUDA Core/SFU，对最终 <code>o[..., -rd:]</code> 一次 inverse</td>
+                  <td>不改 <code>kv_shared</code>，不阻塞 QK/PV 的 shared tile 复用</td>
+                  <td>这是特定算法选择；本文只说明其工程位置便宜</td>
+                </tr>
+                <tr>
+                  <td>own-position V inverse / relative rotate</td>
+                  <td>QK/softmax 与 PV 中间</td>
+                  <td>CUDA Core/SFU、shared read/write、register、barrier</td>
+                  <td>如果原地改写同一 <code>kv_shared</code>，很难完全隐藏；可用双 buffer、重读、重排 kernel 换别的代价</td>
+                  <td>tile 表示相位改变、consumer/producer 同步、shared bandwidth、occupancy、PV Tensor Core 等待</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              最后的判断可以压成一句话：不是不能写这种 kernel，也不是“寄存器一定翻倍”这种粗糙结论。真正的工程代价是，位置变换从 cache 写入侧或输出侧搬进 per-KV tile 热循环后，会改变 tile representation、shared memory phase、barrier 需求、register pressure 和 Tensor Core feed。算法数学上可行，不等于在 GPU 流水上免费。
+            </p>
+          </section>
+
+          <section id="refs">
+            <h2>参考资料</h2>
+            <ol class="refs">
+              <li id="ref-cuda-sm"><span class="tag">CUDA-SM</span> NVIDIA, <a href="Reference/NVIDIA-CUDA-C-Programming-Guide.html#hardware-implementation">CUDA C++ Programming Guide, Hardware Implementation</a>：GPU 由 SM 数组组成；blocks 分发到 SM；一个 SM 可并发执行多个 blocks。</li>
+              <li id="ref-cuda-memory"><span class="tag">CUDA-Mem</span> NVIDIA, <a href="Reference/NVIDIA-CUDA-C-Programming-Guide.html#memory-hierarchy">CUDA C++ Programming Guide, Memory Hierarchy</a>：threads、thread blocks、shared memory、global memory 的层级关系。</li>
+              <li id="ref-cuda-sync"><span class="tag">CUDA-Sync</span> NVIDIA, <a href="Reference/NVIDIA-CUDA-C-Programming-Guide.html#shared-memory">CUDA C++ Programming Guide, Shared Memory</a>：block 内 threads 通过 shared memory 协作，并用 <code>__syncthreads()</code> 协调访问。</li>
+              <li id="ref-cuda-warp"><span class="tag">CUDA-Warp</span> NVIDIA, <a href="Reference/NVIDIA-CUDA-C-Programming-Guide.html#simt-architecture">CUDA C++ Programming Guide, SIMT Architecture</a>：block 被划分为 warps，warp scheduler 调度 warp 执行。</li>
+              <li id="ref-cuda-scheduler"><span class="tag">CUDA-Sched</span> NVIDIA, <a href="Reference/NVIDIA-CUDA-C-Programming-Guide.html#performance-guidelines">CUDA C++ Programming Guide, Hardware Multithreading / Performance Guidelines</a>：warp scheduler 从 ready warps 发射指令；latency hiding 依赖 resident warps 和 ready instruction。</li>
+              <li id="ref-cuda-latency"><span class="tag">CUDA-Lat</span> NVIDIA, <a href="Reference/NVIDIA-CUDA-C-Programming-Guide.html#maximize-utilization">CUDA C++ Programming Guide, Maximize Utilization</a>：off-chip memory latency 远高于寄存器依赖，通常需要更多 warps 隐藏。</li>
+              <li id="ref-cuda-occupancy"><span class="tag">CUDA-Occ</span> NVIDIA, <a href="Reference/NVIDIA-CUDA-C-Programming-Guide.html#hardware-multithreading">CUDA C++ Programming Guide, Hardware Multithreading</a>：resident warps/blocks 取决于寄存器和 shared memory 使用量。</li>
+              <li id="ref-cuda-block-sync"><span class="tag">CUDA-Block</span> NVIDIA, <a href="Reference/NVIDIA-CUDA-C-Programming-Guide.html#hardware-multithreading">CUDA C++ Programming Guide</a>：同一 block 可用 shared memory 和 <code>__syncthreads()</code>；不同 blocks 的通信通常要通过 global memory 或 kernel 边界。</li>
+              <li id="ref-cuda-tensor"><span class="tag">CUDA-TC</span> NVIDIA, <a href="Reference/NVIDIA-CUDA-C-Programming-Guide.html#compute-capability-9-0">CUDA C++ Programming Guide, Compute Capability 9.0</a>：SM 包含 Tensor Cores、warp schedulers、unified data cache/shared memory 等资源。</li>
+              <li id="ref-hopper-sm"><span class="tag">Hopper-SM</span> NVIDIA, <a href="Reference/NVIDIA-Hopper-Tuning-Guide.html#streaming-multiprocessor">Hopper Tuning Guide, Streaming Multiprocessor</a>：H100 SM 的 resident warps、register file、shared memory 容量。</li>
+              <li id="ref-hopper-tma"><span class="tag">Hopper-TMA</span> NVIDIA, <a href="Reference/NVIDIA-Hopper-Tuning-Guide.html#tensor-memory-accelerator">Hopper Tuning Guide, Tensor Memory Accelerator</a>：TMA 支持 global/shared tensor 传输、warp specialization，并通过等待数据被消费时同步。</li>
+              <li id="ref-cutlass-gemm"><span class="tag">CUTLASS-GEMM</span> NVIDIA, <a href="Reference/NVIDIA-CUTLASS-Efficient-GEMM.html#warp-level-gemm">CUTLASS Efficient GEMM, Warp-level GEMM</a>：warps 从 shared memory 取数据到 registers，并通过 Tensor Cores 或 SIMT math 执行计算。</li>
+              <li id="ref-cutlass-pipe"><span class="tag">CUTLASS-Pipe</span> NVIDIA, <a href="Reference/NVIDIA-CUTLASS-Efficient-GEMM.html#pipelining">CUTLASS Efficient GEMM, Pipelining</a>：threadblock-scoped shared tiles、warp-scoped register fragments、double buffering 和 producer/consumer pipeline。</li>
+              <li id="ref-flash"><span class="tag">FlashAttn</span> Dao et al., <a href="Reference/FlashAttention-2205.14135.pdf">FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness</a>：IO-aware attention tiling、SRAM 复用与 online softmax 思路。</li>
+              <li id="ref-dsv4-report"><span class="tag">DSV4</span> DeepSeek-AI, <a href="Reference/DeepSeek_V4.pdf">DeepSeek-V4 Technical Report</a>：CSA/HCA、shared Key-Value MQA、partial RoPE、RoPE 维存储与 attention 输出 inverse RoPE 的背景。</li>
+              <li id="ref-dsv4-code-model"><span class="tag">DSV4-Code-M</span> 本地 <code>/Users/jyxc-dz-0100301/Documents/code/thirdparty/DeepSeek-V4-Pro/inference/model.py:L232-L244</code> 定义 <code>apply_rotary_emb(..., inverse=True)</code>；<code>L497-L534</code> 对 q、kv、o 应用 RoPE / inverse RoPE。</li>
+              <li id="ref-dsv4-code-kernel"><span class="tag">DSV4-Code-K</span> 本地 <code>/Users/jyxc-dz-0100301/Documents/code/thirdparty/DeepSeek-V4-Pro/inference/kernel.py:L277-L352</code>：<code>kv_shared</code> gather 后用于 QK GEMM 和 PV GEMM。</li>
+            </ol>
+          </section>
+        </div>
+      </article>
+
+      <aside class="post-toc" aria-label="目录">
+        <div class="post-toc-card">
+          <h2>目录</h2>
+          <nav>
+            <a href="#s1">1. LLM 推理为什么变成 GPU 问题</a>
+            <a href="#s2">2. GPU 层级不是装饰</a>
+            <a href="#s3">3. SM 与执行单元</a>
+            <a href="#s4">4. warp / thread / block</a>
+            <a href="#s5">5. Attention 映射到 GPU 流水</a>
+            <a href="#s6">6. Tensor Core vs CUDA Core</a>
+            <a href="#s7">7. memory-bound 的正确理解</a>
+            <a href="#s8">8. 回到 RoPE / KV Cache</a>
+            <a href="#refs">参考资料</a>
+          </nav>
+        </div>
+      </aside>
+    </div>
+  </div>
+</body>
+</html>
