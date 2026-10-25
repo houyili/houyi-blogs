@@ -159,22 +159,29 @@ const jsonLd = structuredData ?? defaultStructuredData;
     <title>{title}</title>
   </head>
   <body>
+    <a class="skip-link" href="#main-content">{lang === "zh" ? "跳转到内容" : "Skip to content"}</a>
     <div class="site-shell">
       <header class="topbar">
-        <a class="brand" href={base}>
+        <a class="brand" href={currentBase} aria-label={lang === "zh" ? "Houyi Li · 首页" : "Houyi Li · Home"}>
           <span class="brand-mark" aria-hidden="true">HL</span>
           <strong>Houyi Li</strong>
         </a>
-        <nav class="nav" aria-label="Primary navigation">
+        <nav class="nav" aria-label={lang === "zh" ? "研究分类" : "Research streams"}>
           <a href={currentBase} aria-current={current === "flow" ? "page" : undefined}>{nav.flow}</a>
-          <a href={resolvedSwitchHref}>{nav.switchLabel}</a>
-          <a href={`${currentBase}about/`} aria-current={current === "about" ? "page" : undefined}>{nav.about}</a>
           <a href={`${currentBase}papers/`} aria-current={current === "papers" ? "page" : undefined}>{nav.papers}</a>
           <a href={`${currentBase}open-source/`} aria-current={current === "open-source" ? "page" : undefined}>{nav.openSource}</a>
           <a href={`${currentBase}reading-notes/`} aria-current={current === "reading-notes" ? "page" : undefined}>{nav.readingNotes}</a>
         </nav>
+        <div class="header-actions">
+          <a href={`${currentBase}about/`} aria-current={current === "about" ? "page" : undefined}>{nav.about}</a>
+          <a class="language-switch" href={resolvedSwitchHref} lang={otherLang} hreflang={otherLang} aria-label={lang === "zh" ? "Switch to English" : "切换到中文"}>{nav.switchLabel}</a>
+        </div>
       </header>
-      <slot />
+      <div id="main-content" tabindex="-1"><slot /></div>
+      <footer class="site-footer">
+        <span>Houyi Li <span aria-hidden="true">/</span> AGI Research</span>
+        <a href={rssUrl}>RSS <span aria-hidden="true">↗</span></a>
+      </footer>
     </div>
   </body>
 </html>

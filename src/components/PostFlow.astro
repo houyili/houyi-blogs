@@ -10,7 +10,7 @@ type FlowCopy = {
   pinned: string;
   topics: string;
   allResearch: string;
-  loadMore: string;
+  endOfFlow: string;
   emptyTitle: string;
   emptyText: string;
   searchEmptyTitle: string;
@@ -45,14 +45,14 @@ const topicEntries = topicOrder
   .map((topic) => [topic, topicCounts.get(topic) ?? 0] as const)
   .sort((a, b) => b[1] - a[1] || topicOrder.indexOf(a[0]) - topicOrder.indexOf(b[0]));
 const topics = topicEntries.map(([topic]) => topic);
-const visibleTopics = topics.slice(0, 1);
-const collapsedTopics = topics.slice(1);
+const visibleTopics = topics.slice(0, 5);
+const collapsedTopics = topics.slice(5);
 const moreTopicsLabel = lang === "en" ? "More" : "更多";
 const topicEmptyTitle = lang === "en" ? "No posts for this topic." : "暂无该主题文章。";
 const topicEmptyText = lang === "en"
   ? "Choose another topic or return to the full research flow."
   : "请选择其他主题，或返回完整研究流。";
-const searchExamples = topics.slice(0, 4);
+const searchExamples = topics.slice(0, 2);
 const searchPlaceholder = lang === "en"
   ? searchExamples.length > 0 ? `Search ${searchExamples.join(", ")}...` : "Search this flow..."
   : searchExamples.length > 0 ? `搜索 ${searchExamples.join("、")}...` : "搜索当前列表...";
@@ -94,7 +94,7 @@ const allCopy = {
     search: "Search",
     pinned: "Pinned",
     topics: "Topics",
-    loadMore: "Load more research notes",
+    endOfFlow: "You're all caught up. More research to come.",
     searchEmptyTitle: "No posts match this search.",
     searchEmptyText: "Try another query or clear the search box to return to the full flow.",
     noPinned: "No pinned posts in this flow.",
@@ -132,7 +132,7 @@ const allCopy = {
     search: "搜索",
     pinned: "置顶",
     topics: "主题索引",
-    loadMore: "加载更多研究笔记",
+    endOfFlow: "已浏览全部文章，新的研究还在继续。",
     searchEmptyTitle: "没有匹配的文章。",
     searchEmptyText: "可以换一个关键词，或清空搜索框返回完整列表。",
     noPinned: "当前列表暂无置顶文章。",
@@ -144,20 +144,25 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
 ---
 
 <section class="hero" aria-labelledby="site-title">
-  <div>
-    <h1 id="site-title">{copy.heading}</h1>
+  <div class="hero-copy">
+    <div class="eyebrow"><span class="status-dot" aria-hidden="true"></span>{lang === "zh" ? "保持好奇，持续探索" : "Stay curious. Keep exploring."}</div>
+    <h1 id="site-title">{lang === "zh" && flow === "all" ? <><span>AGI 研究学习笔记</span><span>与工作解读</span></> : copy.heading}</h1>
     <p>{copy.subheading}</p>
   </div>
 </section>
 
 <main class="flow-layout">
-  <section class="post-stream anchor-target" aria-label="Research flow">
+  <section class="post-stream anchor-target" aria-label={lang === "zh" ? "研究文章" : "Research flow"}>
+    <div class="stream-heading">
+      <h2>{copy.allResearch}</h2>
+      <span data-result-count data-count-template={lang === "zh" ? "{count} 篇文章" : "{count} entries"} data-count-single={lang === "zh" ? "1 篇文章" : "1 entry"} aria-live="polite" aria-atomic="true">{lang === "zh" ? `${posts.length} 篇文章` : `${posts.length} ${posts.length === 1 ? "entry" : "entries"}`}</span>
+    </div>
     <div class="post-list" data-post-list>
       {posts.length > 0 ? (
         <>
           {posts.map((post, index) => (
             <a
-              class="post-card-link"
+              class:list={["post-card-link", { "is-pinned": post.data.pinned }]}
               href={`${base}/${lang}/${post.data.post_slug}/`}
               data-post-card
               data-tags={post.data.tags.map((tag) => encodeURIComponent(tag)).join(" ")}
@@ -169,19 +174,22 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
               <article class="post-card">
                 <div class="post-copy">
                   <div class="meta">
-                    {post.data.pinned && <span class="pill primary">{copy.pinned}</span>}
+                    {post.data.pinned && <span class="pill primary"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-4 2-3 5-2-2-5 5-1-1 5-5-2-2 5-3z" /></svg>{copy.pinned}</span>}
                     {post.data.category && <span class="pill">{post.data.category}</span>}
-                    {post.data.read_time && <span class="pill">{post.data.read_time}</span>}
                   </div>
                   <h2>{post.data.title}</h2>
                   <p>{post.data.description}</p>
                   <div class="tag-row">
                     {post.data.tags.map((tag) => <span class="tag">{tag}</span>)}
                   </div>
+                  <div class="post-card-footer">
+                    <span class="post-date"><time datetime={post.data.published.toISOString().slice(0, 10)}>{post.data.published.toLocaleDateString(lang === "zh" ? "zh-CN" : "en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" })}</time>{post.data.read_time && <><span aria-hidden="true"> · </span>{post.data.read_time}</>}</span>
+                    <span class="read-note">{lang === "zh" ? "阅读全文" : "Read note"}<span aria-hidden="true">→</span></span>
+                  </div>
                 </div>
                 {post.data.image && (
                   <figure class="post-figure">
-                    <img src={`${base}${post.data.image}`} alt={`${post.data.title} figure`} loading="lazy" />
+                    <img src={`${base}${post.data.image}`} alt={`${post.data.title} figure`} loading={index === 0 ? "eager" : "lazy"} decoding="async" />
                   </figure>
                 )}
               </article>
@@ -198,7 +206,7 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
             <h2 data-empty-title>{topicEmptyTitle}</h2>
             <p data-empty-text>{topicEmptyText}</p>
           </div>
-          <div class="load" data-load-more>{copy.loadMore}</div>
+          <div class="flow-end" data-flow-end><span aria-hidden="true">✳</span>{copy.endOfFlow}</div>
         </>
       ) : (
         <div class="empty-flow">
@@ -209,87 +217,98 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
     </div>
   </section>
 
-  <aside class="rail" aria-label="Research index">
+  <aside class="rail" aria-label={lang === "zh" ? "研究索引" : "Research index"}>
     <section class="rail-section">
-      <h2>{copy.search}</h2>
-      <input class="search-box" type="search" placeholder={searchPlaceholder} data-search-box />
+      <h2><label for="flow-search">{copy.search}</label></h2>
+      <div class="search-field">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
+        <input id="flow-search" class="search-box" type="search" placeholder={searchPlaceholder} data-search-box />
+      </div>
     </section>
 
-    <section class="rail-section" data-pinned-section>
-      <h2>{copy.pinned}</h2>
-      <ul class="pinned-list">
-        {pinnedPosts.length > 0 ? (
-          pinnedPosts.map((post) => (
-            <li>
-              <a href={`${base}/${lang}/${post.data.post_slug}/`}>
-                <strong>{post.data.title}</strong>
-                <span>{[post.data.category, post.data.venue].filter(Boolean).join(" · ")}</span>
-              </a>
-            </li>
-          ))
-        ) : (
-          <li><span>{copy.noPinned}</span></li>
-        )}
-      </ul>
-    </section>
-
-    <section class="rail-section">
-      <h2>{copy.topics}</h2>
-      <ul class="topic-list">
-        <li>
-          <button class="topic-filter is-active" type="button" data-topic-filter="" data-topic-key="" aria-pressed="true">
-            <strong>{copy.allResearch}</strong>
-            <span>{posts.length}</span>
-          </button>
-        </li>
-        {topics.length > 0 ? (
-          <>
-            {visibleTopics.map((topic) => (
-              <li>
-                <button
-                  class="topic-filter"
-                  type="button"
-                  data-topic-filter={topic}
-                  data-topic-key={encodeURIComponent(topic)}
-                  aria-pressed="false"
-                >
-                  <span>{topic}</span>
-                  <span>{topicCounts.get(topic)}</span>
-                </button>
-              </li>
-            ))}
-            {collapsedTopics.length > 0 && (
-              <li class="topic-more">
-                <details>
-                  <summary>
-                    <span>{moreTopicsLabel}</span>
-                    <span>{collapsedTopics.length}</span>
-                  </summary>
-                  <ul class="topic-list topic-list-collapsed">
-                    {collapsedTopics.map((topic) => (
-                      <li>
-                        <button
-                          class="topic-filter"
-                          type="button"
-                          data-topic-filter={topic}
-                          data-topic-key={encodeURIComponent(topic)}
-                          aria-pressed="false"
-                        >
-                          <span>{topic}</span>
-                          <span>{topicCounts.get(topic)}</span>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              </li>
+    <details class="rail-index" open data-rail-index>
+      <summary class="rail-index-toggle">
+        <span>{lang === "zh" ? "浏览主题与置顶" : "Browse topics & pinned"}</span>
+        <span class="rail-index-icon" aria-hidden="true">+</span>
+      </summary>
+      <div class="rail-index-content">
+        <section class="rail-section" data-pinned-section>
+          <h2>{copy.pinned}</h2>
+          <ul class="pinned-list">
+            {pinnedPosts.length > 0 ? (
+              pinnedPosts.map((post) => (
+                <li>
+                  <a href={`${base}/${lang}/${post.data.post_slug}/`}>
+                    <strong>{post.data.title}</strong>
+                    <span>{[post.data.category, post.data.venue].filter(Boolean).join(" · ")}</span>
+                  </a>
+                </li>
+              ))
+            ) : (
+              <li><span>{copy.noPinned}</span></li>
             )}
-          </>
-        ) : (
-          <li><span>{copy.noTopics}</span><span>0</span></li>
-        )}
-      </ul>
-    </section>
+          </ul>
+        </section>
+
+        <section class="rail-section">
+          <h2>{copy.topics}</h2>
+          <ul class="topic-list">
+            <li>
+              <button class="topic-filter is-active" type="button" data-topic-filter="" data-topic-key="" aria-pressed="true">
+                <strong>{copy.allResearch}</strong>
+                <span>{posts.length}</span>
+              </button>
+            </li>
+            {topics.length > 0 ? (
+              <>
+                {visibleTopics.map((topic) => (
+                  <li>
+                    <button
+                      class="topic-filter"
+                      type="button"
+                      data-topic-filter={topic}
+                      data-topic-key={encodeURIComponent(topic)}
+                      aria-pressed="false"
+                    >
+                      <span>{topic}</span>
+                      <span>{topicCounts.get(topic)}</span>
+                    </button>
+                  </li>
+                ))}
+                {collapsedTopics.length > 0 && (
+                  <li class="topic-more">
+                    <details>
+                      <summary>
+                        <span>{moreTopicsLabel}</span>
+                        <span>{collapsedTopics.length}</span>
+                      </summary>
+                      <ul class="topic-list topic-list-collapsed">
+                        {collapsedTopics.map((topic) => (
+                          <li>
+                            <button
+                              class="topic-filter"
+                              type="button"
+                              data-topic-filter={topic}
+                              data-topic-key={encodeURIComponent(topic)}
+                              aria-pressed="false"
+                            >
+                              <span>{topic}</span>
+                              <span>{topicCounts.get(topic)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  </li>
+                )}
+              </>
+            ) : (
+              <li><span>{copy.noTopics}</span><span>0</span></li>
+            )}
+          </ul>
+        </section>
+      </div>
+    </details>
   </aside>
 </main>
 
@@ -309,7 +328,10 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
     gap: 12px;
     width: 100%;
     border: 0;
-    padding: 0;
+    min-height: 44px;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 8px;
     background: transparent;
     color: inherit;
     font: inherit;
@@ -334,6 +356,14 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
     font-weight: 760;
   }
 
+  .topic-filter.is-active {
+    background: var(--accent-soft);
+  }
+
+  .topic-filter:hover {
+    background: var(--bg);
+  }
+
   .topic-more {
     display: block;
     padding: 0;
@@ -347,7 +377,9 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
     display: flex;
     justify-content: space-between;
     gap: 12px;
-    padding: 9px 0;
+    align-items: center;
+    min-height: 44px;
+    padding: 9px 10px;
     color: var(--muted);
     cursor: pointer;
     list-style: none;
@@ -382,10 +414,18 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
   const topicEmpty = document.querySelector<HTMLElement>("[data-topic-empty]");
   const emptyTitle = topicEmpty?.querySelector<HTMLElement>("[data-empty-title]");
   const emptyText = topicEmpty?.querySelector<HTMLElement>("[data-empty-text]");
-  const loadMore = document.querySelector<HTMLElement>("[data-load-more]");
+  const flowEnd = document.querySelector<HTMLElement>("[data-flow-end]");
   const pinnedSection = document.querySelector<HTMLElement>("[data-pinned-section]");
   const flowLayout = document.querySelector<HTMLElement>(".flow-layout");
   const searchBox = document.querySelector<HTMLInputElement>("[data-search-box]");
+  const resultCount = document.querySelector<HTMLElement>("[data-result-count]");
+  const railIndex = document.querySelector<HTMLDetailsElement>("[data-rail-index]");
+  const compactLayout = window.matchMedia("(max-width: 900px)");
+  const syncRailIndex = () => {
+    if (railIndex) railIndex.open = !compactLayout.matches || new URLSearchParams(window.location.search).has("tag");
+  };
+  syncRailIndex();
+  compactLayout.addEventListener("change", syncRailIndex);
   let activeTopic = "";
   let activeSearchQuery = "";
   let activeSearchPaths: string[] | null = null;
@@ -477,7 +517,7 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
     if (selectedDetails) selectedDetails.open = true;
 
     sortedCards.forEach((card) => {
-      postList?.insertBefore(card, topicEmpty ?? loadMore ?? null);
+      postList?.insertBefore(card, topicEmpty ?? flowEnd ?? null);
       const tags = (card.dataset.tags ?? "").split(" ").filter(Boolean);
       const cardPath = normalizePath(card.dataset.postHref ?? card.getAttribute("href") ?? "");
       const matchesTopic = selectedKey === "" || tags.includes(selectedKey);
@@ -486,6 +526,12 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
       card.classList.toggle("is-hidden", !isVisible);
       if (isVisible) visibleCount += 1;
     });
+
+    if (resultCount) {
+      resultCount.textContent = visibleCount === 1
+        ? resultCount.dataset.countSingle ?? ""
+        : (resultCount.dataset.countTemplate ?? "").replace("{count}", String(visibleCount));
+    }
 
     if (emptyTitle && emptyText && topicEmpty) {
       emptyTitle.textContent = isSearchFiltered
@@ -497,7 +543,7 @@ const copy = { ...allCopy[lang], ...allCopy[lang][flow] };
     }
 
     topicEmpty?.classList.toggle("is-hidden", visibleCount > 0);
-    loadMore?.classList.toggle("is-hidden", visibleCount === 0 || isTopicFiltered || isSearchFiltered);
+    flowEnd?.classList.toggle("is-hidden", visibleCount === 0 || isTopicFiltered || isSearchFiltered);
     pinnedSection?.classList.toggle("is-hidden", isTopicFiltered || isSearchFiltered);
     flowLayout?.classList.toggle("is-topic-filtered", isTopicFiltered);
     flowLayout?.classList.toggle("is-search-filtered", isSearchFiltered);
